@@ -1,3 +1,5 @@
+-- 10/14/2020 - Updated to support new Backdrop requirments in Shadowlands - LynchburgJack
+
 local _
 _, Mappy = ...
 
@@ -11,19 +13,20 @@ Mappy.StackingInfo = {}
 
 Mappy.BlizzardButtonNames = {
 	"GameTimeFrame",
-	"MiniMapMailFrame",
-	"MiniMapTracking",
-	"MiniMapWorldMapButton",
+	"MiniMapCluster.MailFrame",
+	"MiniMapCluster.Tracking",
+    "MinimapCluster.Tracking.Button",
+	--"MiniMapWorldMapButton",
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
 	"MiniMapVoiceChatFrame",
-	"MinimapZoomIn",
-	"MinimapZoomOut",
+	"Minimap.ZoomIn",
+	"Minimap.ZoomOut",
 	"FeedbackUIButton",
-	"MiniMapInstanceDifficulty",
+    "MinimapCluster.InstanceDifficulty",
 	"MiniMapLFGFrame",
 	"GuildInstanceDifficulty",
-	"GarrisonLandingPageMinimapButton"
+    "ExpansionLandingPageMinimapButton",
 }
 
 Mappy.MinimapAttachedFrames = {
@@ -38,7 +41,7 @@ Mappy.MinimapAttachedFrames = {
 	--"Boss4TargetFrame",
 	"DurabilityFrame",
 	"ArenaEnemyFrames",
-	"ObjectiveTrackerFrame",
+	--"ObjectiveTrackerFrame",
 }
 
 Mappy.OtherAddonButtonNames = {
@@ -192,8 +195,8 @@ function Mappy:AddonLoaded(pEventID, pAddonName)
 	end
 	
 	-- Hook Minimap_UpdateRotationSetting to enforce the visibility of the 'N' arrow
-	
-	hooksecurefunc("Minimap_UpdateRotationSetting", function (...) Mappy:Minimap_UpdateRotationSetting(...) end)
+	-- Shushuda
+	--hooksecurefunc("Minimap_UpdateRotationSetting", function (...) Mappy:Minimap_UpdateRotationSetting(...) end)
 	
 	self.SchedulerLib:ScheduleUniqueTask(0.5, self.InitializeMinimap, self)
 	
@@ -301,8 +304,9 @@ function Mappy:InitializeMinimap()
 	if MinimapToggleButton then -- Not in patch 3.3
 		MinimapToggleButton:Hide()
 	end
-	
-	MinimapBorderTop:Hide()
+	-- Shushuda
+	--MinimapBorderTop:Hide()
+    MinimapCluster.BorderTop:Hide()
 	
 	-- Add scroll wheel support
 	Minimap:SetScript("OnMouseWheel", function (pMinimap, pDirection) self:MinimapMouseWheel(pDirection) end)
@@ -316,7 +320,8 @@ function Mappy:InitializeMinimap()
 	self.SchedulerLib:ScheduleRepeatingTask(0.2, self.Update, self)
 	
 	-- Adjust the objective tracker so it lines up nicely with the map
-	ObjectiveTrackerFrame:SetPoint("TOPRIGHT", MinimapCluster, "BOTTOMRIGHT", 10, -30)
+    -- Shushuda
+	--ObjectiveTrackerFrame:SetPoint("TOPRIGHT", MinimapCluster, "BOTTOMRIGHT", 10, -30)
 
 	self:InitializeAttachedFrames()
 	
@@ -340,8 +345,10 @@ function Mappy:InitializeMinimap()
 end
 
 function Mappy:InitializeAttachedFrames()
-	local attachmenFrame = CreateFrame("Frame", "MappyAttachmentFrame", UIParent, "SecureFrameTemplate")
-	self.AttachmentFrame = attachmenFrame
+	-- 10/14/2020 - Updated code to use the new Backdrop templates -LynchburgJack
+	--local attachmentFrame = CreateFrame("Frame", "MappyAttachmentFrame", UIParent, "SecureFrameTemplate")
+	local AttachmentFrame = CreateFrame("Frame", "MappyAttachmentFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate")
+	self.AttachmentFrame = AttachmentFrame
 
 	-- Give it an initial position
 	self.AttachmentFrame:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
@@ -622,35 +629,46 @@ function Mappy:ConfigureMinimapOptions()
 	end
 
 	if self.CurrentProfile.HideZoom then
-		MinimapZoomIn:Hide()
-		MinimapZoomOut:Hide()
+		Minimap.ZoomIn:Hide()
+		Minimap.ZoomOut:Hide()
 	else
-		MinimapZoomIn:Show()
-		MinimapZoomOut:Show()
+		Minimap.ZoomIn:Show()
+		Minimap.ZoomOut:Show()
 	end
-	
+    -- Shushuda
+	--[[
 	if self.CurrentProfile.HideWorldMap then
 		MiniMapWorldMapButton:Hide()
 	else
 		MiniMapWorldMapButton:Show()
 	end
-	
+	]]--
+    -- Shushuda
 	if self.CurrentProfile.HideZoneName then
-		MinimapZoneTextButton:Hide()
+        MinimapCluster.ZoneTextButton:Hide()
+		--MinimapZoneTextButton:Hide()
 	else
-		MinimapZoneTextButton:Show()
+        MinimapCluster.ZoneTextButton:Show()
+		--MinimapZoneTextButton:Show()
 	end
 	
+    -- Shushuda
 	if self.CurrentProfile.HideTracking then
-		MiniMapTracking:Hide()
+        MinimapCluster.Tracking:Hide()
+		--MiniMapTracking:Hide()
 	else
-		MiniMapTracking:Show()
+        MinimapCluster.Tracking:Show()
+		--MiniMapTracking:Show()
 	end
 	
 	if self.CurrentProfile.HideTimeManagerClock then
-		TimeManagerClockButton:Hide()
+		if TimeManagerClockButton then
+			TimeManagerClockButton:Hide()
+		end
 	else
-		TimeManagerClockButton:Show()
+		if TimeManagerClockButton then
+			TimeManagerClockButton:Show()
+		end
 	end
 	
 	if self.CurrentProfile.FlashGatherNodes then
@@ -724,7 +742,7 @@ end
 
 function Mappy:AdjustBackgroundStyle()
 	if self.CurrentProfile.HideBorder then
-		MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 0.0)
+				MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 0.0)
 		MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 0.0, 0.0)
 	else
 		MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75)
@@ -734,7 +752,26 @@ end
 
 function Mappy:InitializeSquareShape()
 	Minimap:SetMaskTexture("Interface\\Addons\\Mappy\\Textures\\MinimapMask")
-	MinimapBorder:SetTexture(nil)
+    -- Shushuda
+    --MinimapBackdrop:Hide()
+	--MinimapBorder:SetTexture(nil)
+	
+	-- 10/14/2020 - Updated code to use the new Backdrop templates -LynchburgJack
+	MinimapBackdrop = CreateFrame("Frame", "Backdrop", MinimapBackdrop, BackdropTemplateMixin and "BackdropTemplate")
+	MinimapBackdrop.backdropInfo = {
+		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+		tile = true, tileSize = 16, edgeSize = 16,
+		insets = {left = 3, right = 3, top = 3, bottom = 3},
+	}
+	
+	MinimapBackdrop:SetBackdrop(MinimapBackdrop.backdropInfo)
+	MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 1.0)
+	MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
+	-- 10/14/2020 SetAlpha defaults to 1 now and is set above in SetBackdropColor (r,g,b,a) - LynchburgJack
+	-- MinimapBackdrop:SetAlpha(1.0)
+
+	--[[ 10/14/2020 - Old code -LynchburgJack
 	
 	MinimapBackdrop:SetBackdrop({
 		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -745,7 +782,7 @@ function Mappy:InitializeSquareShape()
 	MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75)
 	MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 0.0)
 	MinimapBackdrop:SetAlpha(1.0)
-
+	--]]
 	-- Change the backdrop to size with the map
 	
 	MinimapBackdrop:ClearAllPoints()
@@ -753,10 +790,11 @@ function Mappy:InitializeSquareShape()
 	MinimapBackdrop:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 4, -4)
 	
 	-- Move the zone text to the top
+	-- Shushuda
+	MinimapCluster.ZoneTextButton:ClearAllPoints()
+	MinimapCluster.ZoneTextButton:SetPoint("BOTTOM", Minimap, "TOP", 0, 4)
 	
-	MinimapZoneTextButton:ClearAllPoints()
-	MinimapZoneTextButton:SetPoint("BOTTOM", Minimap, "TOP", 0, 4)
-	
+	MinimapBackdrop:ApplyBackdrop()
 end
 
 function Mappy:SetCounterClockwise(pCCW)
@@ -1161,6 +1199,13 @@ function Mappy:ConfigureMinimap()
 		TimeManagerClockButton:SetPoint("CENTER", Minimap, "BOTTOM", 0, -2)
 --		TimeManagerClockButton:SetFrameLevel(10)
 	end
+    
+    -- Shushuda
+    -- TODO: Move tracking, mail and calendar buttons to logical places
+    if GameTimeFrame then
+        GameTimeFrame:ClearAllPoints()
+        --GameTimeFrame:SetPoint("")
+    end
 	
 	-- Stack all the known buttons
 	
@@ -1192,7 +1237,8 @@ function Mappy:ConfigureMinimap()
 			SetCVar("rotateMinimap", "0")
 		end
 		
-		Minimap_UpdateRotationSetting()
+        -- Shushuda
+		--Minimap_UpdateRotationSetting()
 	end
 
 	-- Update the cluster position hack
@@ -1452,14 +1498,14 @@ function Mappy:Update()
 end
 
 function Mappy:UpdateCoords()
-	if false then
-		local	vX, vY = GetPlayerMapPosition("player")
-		if not vX or not vY or (vX == 0 and vY == 0) then
-			self.CoordString:SetText("")
-		else
-			self.CoordString:SetText(string.format("%.1f, %.1f", vX * 100, vY * 100))
-		end
-	end
+    local map = C_Map.GetBestMapForUnit("player")
+    local position = C_Map.GetPlayerMapPosition(map, "player")
+    vX, vY = position:GetXY()
+    if not vX or not vY or (vX == 0 and vY == 0) then
+        self.CoordString:SetText("")
+    else
+        self.CoordString:SetText(string.format("%.1f, %.1f", vX * 100, vY * 100))
+    end
 end
 
 function Mappy:AdjustAlpha(pForceAlpha)
@@ -1572,10 +1618,10 @@ end
 function Mappy:SetHideTracking(pHide)
 	if pHide then
 		self.CurrentProfile.HideTracking = true
-		MiniMapTracking:Hide()
+		MiniMapCluster.Tracking:Hide()
 	else
 		self.CurrentProfile.HideTracking = nil
-		MiniMapTracking:Show()
+		MiniMapCluster.Tracking:Show()
 	end
 end
 
@@ -1602,12 +1648,12 @@ end
 function Mappy:SetHideZoom(pHide)
 	if pHide then
 		self.CurrentProfile.HideZoom = true
-		MinimapZoomIn:Hide()
-		MinimapZoomOut:Hide()
+		Minimap.ZoomIn:Hide()
+		Minimap.ZoomOut:Hide()
 	else
 		self.CurrentProfile.HideZoom = nil
-		MinimapZoomIn:Show()
-		MinimapZoomOut:Show()
+		Minimap.ZoomIn:Show()
+		Minimap.ZoomOut:Show()
 	end
 end
 
@@ -1633,10 +1679,10 @@ end
 function Mappy:SetHideZoneName(pHide)
 	if pHide then
 		self.CurrentProfile.HideZoneName = true
-		MinimapZoneTextButton:Hide()
+		MinimapCluster.ZoneTextButton:Hide()
 	else
 		self.CurrentProfile.HideZoneName = nil
-		MinimapZoneTextButton:Show()
+		MinimapCluster.ZoneTextButton:Show()
 	end
 end
 
@@ -1801,20 +1847,20 @@ function Mappy:MinimapMouseWheel(pWheelDirection)
 			Minimap:SetZoom(vZoom + 1)
 		end
 		
-		MinimapZoomOut:Enable()
+		Minimap.ZoomOut:Enable()
 		
 		if Minimap:GetZoom() == (Minimap:GetZoomLevels() - 1) then
-			MinimapZoomIn:Disable()
+			Minimap.ZoomIn:Disable()
 		end
 	else
 		if vZoom > 0 then
 			Minimap:SetZoom(vZoom - 1)
 		end
 
-		MinimapZoomIn:Enable()
+		Minimap.ZoomIn:Enable()
 		
 		if Minimap:GetZoom() == 0 then
-			MinimapZoomOut:Disable()
+			Minimap.ZoomOut:Disable()
 		end
 	end
 end
@@ -2449,6 +2495,8 @@ function Mappy._OptionsPanel:Construct(pParent)
 	MappyMovingAlphaSliderText:SetText("Movement Alpha")
 	self.MovingAlphaSlider:SetMinMaxValues(0, 1)
 	
+    -- Shushuda
+    --[[
 	-- Hide coordinates
 
 	self.HideCoordinatesCheckbutton = CreateFrame("Checkbutton", "MappyHideCoordinatesCheckbutton", self, "OptionsCheckButtonTemplate")
@@ -2515,6 +2563,7 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.LockManagedFramesCheckbutton:SetPoint("TOPLEFT", self.DetachManagedFramesCheckbutton, "TOPLEFT", 0, -25)
 	self.LockManagedFramesCheckbutton:SetScript("OnClick", function (button) Mappy:SetLockManagedFrames(button:GetChecked()) end)
 	MappyLockManagedFramesCheckbuttonText:SetText("Lock UI frames position")
+    ]]--
 
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
@@ -2527,7 +2576,9 @@ function Mappy._OptionsPanel:OnShow()
 	self.AlphaSlider:SetValue(Mappy.CurrentProfile.MinimapAlpha or 1)
 	self.CombatAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapCombatAlpha or 0.2)
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
-	self.HideCoordinatesCheckbutton:SetChecked(Mappy.CurrentProfile.HideCoordinates)
+	-- Shushuda
+    --[[
+    self.HideCoordinatesCheckbutton:SetChecked(Mappy.CurrentProfile.HideCoordinates)
 	self.HideZoneNameCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoneName)
 	self.HideNorthLabelCheckbutton:SetChecked(Mappy.CurrentProfile.HideNorthLabel)
 	self.HideBorderCheckbutton:SetChecked(Mappy.CurrentProfile.HideBorder)
@@ -2544,6 +2595,7 @@ function Mappy._OptionsPanel:OnShow()
 	else
 		self.LockManagedFramesCheckbutton:Disable()
 	end
+    ]]--
 	
 	Mappy.DisableUpdates = false
 end
@@ -2571,8 +2623,9 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 15, -15)
 	self.Title:SetText("Mappy Buttons")
 	
+    -- Shushuda
 	-- Hide time-of-day
-	
+	--[[
 	self.HideTimeOfDayCheckbutton = CreateFrame("Checkbutton", "MappyHideTimeOfDayCheckbutton", self, "OptionsCheckButtonTemplate")
 	self.HideTimeOfDayCheckbutton:SetPoint("TOPLEFT", self.Title, "BOTTOMLEFT", 0, -15)
 	self.HideTimeOfDayCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeOfDay(self:GetChecked()) end)
@@ -2648,6 +2701,7 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.StackToScreenCheckbutton:SetPoint("TOPLEFT", self.CCWCheckbutton, "TOPLEFT", 0, -25)
 	self.StackToScreenCheckbutton:SetScript("OnClick", function (self) Mappy:SetStackToScreen(self:GetChecked()) end)
 	MappyStackToScreenCheckbuttonText:SetText("Stack around screen")
+    ]]--
 	
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
@@ -2655,7 +2709,8 @@ end
 
 function Mappy._ButtonOptionsPanel:OnShow()
 	Mappy.DisableUpdates = true
-	
+	-- Shushuda
+    --[[
 	self.HideTimeOfDayCheckbutton:SetChecked(Mappy.CurrentProfile.HideTimeOfDay)
 	self.HideZoomCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoom)
 	self.HideWorldMapCheckbutton:SetChecked(Mappy.CurrentProfile.HideWorldMap)
@@ -2668,6 +2723,7 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	self.BottomRightCheckbutton:SetChecked(Mappy.CurrentProfile.StartingCorner == "BOTTOMRIGHT")
 	self.CCWCheckbutton:SetChecked(Mappy.CurrentProfile.CCW)
 	self.StackToScreenCheckbutton:SetChecked(Mappy.CurrentProfile.StackToScreen)
+    ]]--
 	
 	Mappy.DisableUpdates = false
 end
