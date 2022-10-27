@@ -12,14 +12,12 @@ Mappy.enableBlips = true
 Mappy.StackingInfo = {}
 
 Mappy.BlizzardButtonNames = {
-    "GameFrameTime",
+    "GameTimeFrame",
     MinimapCluster.MailFrame,
     MinimapCluster.Tracking,
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
 	"MiniMapVoiceChatFrame",
-	MinimapCluster.ZoomIn,
-	MinimapCluster.ZoomOut,
 	"FeedbackUIButton",
     MinimapCluster.InstanceDifficulty,
 	"MiniMapLFGFrame",
@@ -546,17 +544,23 @@ function Mappy:ReparentLandmarks()
 end
 
 function Mappy:FindMinimapButtons()
-	self.MinimapButtons = {}
-	self.MinimapButtonsByFrame = {}
+    self.MinimapButtons = {}
+    self.MinimapButtonsByFrame = {}
 
     for _, vButtonName in ipairs(self.BlizzardButtonNames) do
         self.IgnoreFrames[vButtonName] = true
 
+        local vButton
         -- filter frame names from frame globals
         if type(vButtonName) == "string" then
-            local vButton = _G[vButtonName]
+            vButton = _G[vButtonName]
         else
-            local vButton = vButtonName
+            vButton = vButtonName
+
+            -- handle special case (avoid showing empty box)
+            if vButton == MinimapCluster.InstanceDifficulty and not MinimapCluster.InstanceDifficulty.showDifficultyFrame then
+                vButton = nil
+            end
         end
 
         if vButton then
@@ -567,7 +571,7 @@ function Mappy:FindMinimapButtons()
 	for _, vButtonName in ipairs(self.OtherAddonButtonNames) do
 		self.IgnoreFrames[vButtonName] = true
 	
-		local	vButton = _G[vButtonName]
+		local vButton = _G[vButtonName]
 		
 		if vButton then
 			self:RegisterMinimapButton(vButton)
@@ -620,22 +624,16 @@ function Mappy:ConfigureMinimapOptions()
 		Minimap.ZoomIn:Show()
 		Minimap.ZoomOut:Show()
 	end
-    -- Shushuda
 	if self.CurrentProfile.HideZoneName then
         MinimapCluster.ZoneTextButton:Hide()
-		--MinimapZoneTextButton:Hide()
 	else
         MinimapCluster.ZoneTextButton:Show()
-		--MinimapZoneTextButton:Show()
 	end
 	
-    -- Shushuda
 	if self.CurrentProfile.HideTracking then
         MinimapCluster.Tracking:Hide()
-		--MiniMapTracking:Hide()
 	else
         MinimapCluster.Tracking:Show()
-		--MiniMapTracking:Show()
 	end
 	
 	if self.CurrentProfile.HideTimeManagerClock then
@@ -770,6 +768,10 @@ function Mappy:InitializeSquareShape()
     MinimapCluster.ZoneTextButton:SetSize(180, 12)
     MinimapZoneText:SetAllPoints(MinimapCluster.ZoneTextButton)
     MinimapZoneText:SetJustifyH("MIDDLE")
+
+    -- Move zoom buttons to the corner
+	Minimap.ZoomIn:SetPoint("TOPLEFT", 22, -2)
+	Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
 
 	MinimapBackdrop:ApplyBackdrop()
 end
@@ -1178,7 +1180,6 @@ function Mappy:ConfigureMinimap()
 	end
     
     -- Shushuda
-    -- TODO: Move tracking, mail and calendar buttons to logical places
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
     end
