@@ -719,7 +719,7 @@ function Mappy:EnlargeMinimalistButtons()
     -- Interface\\Minimap\\MiniMap-TrackingBorder
     GameTime:SetTexture(136430)
     GameTime:SetPoint("CENTER", GameTimeFrame, "CENTER", 10, -10)
-    GameTime:SetSize(56,56)
+    GameTime:SetSize(60,60)
 
     local GameTimeBG = GameTimeFrame:CreateTexture(nil, "BACKGROUND")
     -- Interface\\Minimap\\UI-Minimap-Background
@@ -731,23 +731,23 @@ function Mappy:EnlargeMinimalistButtons()
     local MailFrame = MinimapCluster.MailFrame:CreateTexture(nil, "OVERLAY")
     MailFrame:SetTexture(136430)
     MailFrame:SetPoint("CENTER", MiniMapMailIcon, "CENTER", 10, -10)
-    MailFrame:SetSize(56,56)
+    MailFrame:SetSize(53,53)
 
     local MailFrameBG = MinimapCluster.MailFrame:CreateTexture(nil, "BACKGROUND")
     MailFrameBG:SetTexture(136467)
     MailFrameBG:SetPoint("CENTER", MiniMapMailIcon, "CENTER")
-    MailFrameBG:SetSize(30,30)
+    MailFrameBG:SetSize(25,25)
 
     -- tracking
     local Tracking = MinimapCluster.Tracking:CreateTexture(nil, "OVERLAY")
     Tracking:SetTexture(136430)
     Tracking:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER", 10, -10)
-    Tracking:SetSize(56,56)
+    Tracking:SetSize(53,53)
 
     local TrackingBG = MinimapCluster.Tracking:CreateTexture(nil, "BACKGROUND")
     TrackingBG:SetTexture(136467)
     TrackingBG:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER")
-    TrackingBG:SetSize(30,30)
+    TrackingBG:SetSize(25,25)
 end
 
 function Mappy:InitializeDragging()
@@ -1076,6 +1076,10 @@ function Mappy:StackButton(pButton, pNextButton)
         vButtonSize = vButtonSize + 16
         MiniOffsetH = -16
         MiniOffsetV = -16
+    elseif tableContains(self.BlizzardMinimalistButtons, self.StackingInfo.PreviousButton) then
+        -- Correct offset if previous button was mini, but current button is not
+        MiniOffsetH = MiniOffsetH - 2
+        MiniOffsetV = MiniOffsetV - 2
     end
 
 	if not self.StackingInfo.PreviousButton then
