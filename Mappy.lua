@@ -25,6 +25,12 @@ Mappy.BlizzardButtonNames = {
     "ExpansionLandingPageMinimapButton",
 }
 
+Mappy.BlizzardMinimalistButtons = {
+    [GameTimeFrame] = true,
+    [MinimapCluster.MailFrame] = true,
+    [MinimapCluster.Tracking] = true,
+}
+
 Mappy.MinimapAttachedFrames = {
 	"VehicleSeatIndicator",
 	"WorldStateCaptureBar1",
@@ -168,6 +174,15 @@ Mappy.ObjectIconsHighlightPath = ""
 
 Mappy.LandmarkArrows = {}
 
+
+-- local functions
+
+local function tableContains(table, key)
+    return table[key] ~= nil
+end
+
+--
+
 function Mappy:AddonLoaded(pEventID, pAddonName)
 	if pAddonName ~= gAddonName then
 		return
@@ -281,9 +296,12 @@ function Mappy:InitializeSettings()
 end
 
 function Mappy:InitializeMinimap()
-	-- Locate the addon buttons around the minimap
-	self:FindMinimapButtons()
+    -- Enlarge and add borders to minimalist buttons
+    self:EnlargeMinimalistButtons()
 	
+    -- Locate the addon buttons around the minimap
+	self:FindMinimapButtons()
+
 	self:InitializeDragging()
 	self:InitializeSquareShape()
 
@@ -693,26 +711,64 @@ function Mappy:DisableButtonStacking()
 	end
 end
 
+-- create borders and enlarge these new mini buttons
+function Mappy:EnlargeMinimalistButtons()
+    -- calendar
+    local GameTime = GameTimeFrame:CreateTexture(nil, "OVERLAY")
+    -- Interface\\Minimap\\MiniMap-TrackingBorder
+    GameTime:SetTexture(136430)
+    GameTime:SetPoint("CENTER", GameTimeFrame, "CENTER", 10, -10)
+    GameTime:SetSize(56,56)
+
+    local GameTimeBG = GameTimeFrame:CreateTexture(nil, "BACKGROUND")
+    -- Interface\\Minimap\\UI-Minimap-Background
+    GameTimeBG:SetTexture(136467)
+    GameTimeBG:SetPoint("CENTER", GameTimeFrame, "CENTER")
+    GameTimeBG:SetSize(30,30)
+
+    -- mail
+    local MailFrame = MinimapCluster.MailFrame:CreateTexture(nil, "OVERLAY")
+    MailFrame:SetTexture(136430)
+    MailFrame:SetPoint("CENTER", MiniMapMailIcon, "CENTER", 10, -10)
+    MailFrame:SetSize(56,56)
+
+    local MailFrameBG = MinimapCluster.MailFrame:CreateTexture(nil, "BACKGROUND")
+    MailFrameBG:SetTexture(136467)
+    MailFrameBG:SetPoint("CENTER", MiniMapMailIcon, "CENTER")
+    MailFrameBG:SetSize(30,30)
+
+    -- tracking
+    local Tracking = MinimapCluster.Tracking:CreateTexture(nil, "OVERLAY")
+    Tracking:SetTexture(136430)
+    Tracking:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER", 10, -10)
+    Tracking:SetSize(56,56)
+
+    local TrackingBG = MinimapCluster.Tracking:CreateTexture(nil, "BACKGROUND")
+    TrackingBG:SetTexture(136467)
+    TrackingBG:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER")
+    TrackingBG:SetSize(30,30)
+end
+
 function Mappy:InitializeDragging()
-	MinimapCluster:SetMovable(true)
-	MinimapCluster:SetUserPlaced(true)
-	
-	Minimap:RegisterForDrag("LeftButton")
-	Minimap:SetScript("OnDragStart", function() Mappy:StartMovingMinimap() end)
-	Minimap:SetScript("OnDragStop", function() Mappy:StopMovingMinimap() end)
-	
-	MinimapCluster.Mappy_SetPoint = MinimapCluster.SetPoint
-	MinimapCluster.Mappy_ClearAllPoints = MinimapCluster.ClearAllPoints
-	MinimapCluster.SetPoint = function () end
-	MinimapCluster.ClearAllPoints = function () end
-	
-	Minimap.Mappy_SetPoint = Minimap.SetPoint
-	Minimap.Mappy_ClearAllPoints = Minimap.ClearAllPoints
-	Minimap.SetPoint = function () end
-	Minimap.ClearAllPoints = function () end
-	
-	Minimap:Mappy_ClearAllPoints()
-	Minimap:Mappy_SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
+    MinimapCluster:SetMovable(true)
+    MinimapCluster:SetUserPlaced(true)
+
+    Minimap:RegisterForDrag("LeftButton")
+    Minimap:SetScript("OnDragStart", function() Mappy:StartMovingMinimap() end)
+    Minimap:SetScript("OnDragStop", function() Mappy:StopMovingMinimap() end)
+
+    MinimapCluster.Mappy_SetPoint = MinimapCluster.SetPoint
+    MinimapCluster.Mappy_ClearAllPoints = MinimapCluster.ClearAllPoints
+    MinimapCluster.SetPoint = function () end
+    MinimapCluster.ClearAllPoints = function () end
+
+    Minimap.Mappy_SetPoint = Minimap.SetPoint
+    Minimap.Mappy_ClearAllPoints = Minimap.ClearAllPoints
+    Minimap.SetPoint = function () end
+    Minimap.ClearAllPoints = function () end
+
+    Minimap:Mappy_ClearAllPoints()
+    Minimap:Mappy_SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
 end
 
 function Mappy:AdjustBackgroundStyle()
@@ -1008,20 +1064,35 @@ end
 
 function Mappy:StackButton(pButton, pNextButton)
 	-- Calculate the space used by the button
-	
-	local	vSpaceUsed
-	local	vButtonSize = pButton:GetHeight()
-	
+
+	local vSpaceUsed
+	local vButtonSize = pButton:GetHeight()
+    local MiniOffsetH = 0
+    local MiniOffsetV = 0
+
+    -- Check if mini button and add more space for border if yes
+    if tableContains(self.BlizzardMinimalistButtons, pButton) then
+        vButtonSize = vButtonSize + 16
+        MiniOffsetH = -16
+        MiniOffsetV = -16
+    end
+
 	if not self.StackingInfo.PreviousButton then
 		vSpaceUsed = vButtonSize / 2 -- Corner, so use half the size
 	else
 		vSpaceUsed = vButtonSize + self.StackingInfo.CornerInfo.ButtonGap
 	end
-	
+
 	-- See if there's going to be room for the next button
 	
 	if pNextButton then
-		local	vSpaceNeeded = vSpaceUsed + pNextButton:GetHeight() / 2
+        local vNextButtonSize = pNextButton:GetHeight()
+
+        if tableContains(self.BlizzardMinimalistButtons, pNextButton) then
+            vNextButtonSize = vNextButtonSize + 16
+        end
+
+		local	vSpaceNeeded = vSpaceUsed + vNextButtonSize / 2
 		
 		if self.StackingInfo.Corner:sub(1, 6) == "BOTTOM"
 		and not self.StackingInfo.CornerInfo.IsVert
@@ -1059,13 +1130,21 @@ function Mappy:StackButton(pButton, pNextButton)
 			
 			if self.StackingInfo.CornerInfo.IsVert then
 				self.StackingInfo.SpaceRemaining = self.StackingInfo.StackingParent:GetHeight() - (2 * self.StackingInfo.StackingInsetY)
+                MiniOffsetH = 0
 			else
 				self.StackingInfo.SpaceRemaining = self.StackingInfo.StackingParent:GetWidth() - (2 * self.StackingInfo.StackingInsetX)
+                MiniOffsetV = 0
 			end
 			
 			vSpaceUsed = vButtonSize / 2
 		end
 	end
+
+    if self.StackingInfo.CornerInfo.IsVert then
+        MiniOffsetH = 0
+    else
+        MiniOffsetV = 0
+    end
 	
 	-- Stack the button
 	
@@ -1098,7 +1177,8 @@ function Mappy:StackButton(pButton, pNextButton)
 				self.StackingInfo.CornerInfo.AnchorPoint,
 				self.StackingInfo.PreviousButton,
 				self.StackingInfo.CornerInfo.RelativePoint,
-				self.StackingInfo.CornerInfo.HorizGap, self.StackingInfo.CornerInfo.VertGap)
+				self.StackingInfo.CornerInfo.HorizGap + MiniOffsetH,
+                self.StackingInfo.CornerInfo.VertGap + MiniOffsetV)
 	end
 	
 	self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vSpaceUsed
@@ -1175,11 +1255,18 @@ function Mappy:ConfigureMinimap()
 	
 	if TimeManagerClockButton then
 		TimeManagerClockButton:ClearAllPoints()
-		TimeManagerClockButton:SetPoint("CENTER", Minimap, "BOTTOM", 0, -2)
---		TimeManagerClockButton:SetFrameLevel(10)
-	end
+		TimeManagerClockButton:SetPoint("CENTER", Minimap, "BOTTOM", 0, -1)
+        TimeManagerClockTicker:SetAllPoints(TimeManagerClockButton)
+        TimeManagerClockTicker:SetJustifyH("MIDDLE")
+        TimeManagerClockTicker:SetJustifyV("MIDDLE")
+
+        local TimeManagerBG = TimeManagerClockButton:CreateTexture(nil, "BACKGROUND")
+        -- Interface\\Minimap\\MinimapClock
+        TimeManagerBG:SetTexture(1068154)
+        TimeManagerBG:SetPoint("CENTER", TimeManagerClockTicker, "CENTER", 2, -3)
+        TimeManagerBG:SetSize(62, 29)
+    end
     
-    -- Shushuda
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
     end
