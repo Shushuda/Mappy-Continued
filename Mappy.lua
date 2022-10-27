@@ -12,18 +12,17 @@ Mappy.enableBlips = true
 Mappy.StackingInfo = {}
 
 Mappy.BlizzardButtonNames = {
-	"GameTimeFrame",
-	"MiniMapCluster.MailFrame",
-	"MiniMapCluster.Tracking",
-    "MinimapCluster.Tracking.Button",
-	--"MiniMapWorldMapButton",
+    "GameFrameTime",
+    MinimapCluster.MailFrame,
+    MinimapCluster.Tracking,
+    MinimapCluster.Tracking.Button,
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
 	"MiniMapVoiceChatFrame",
-	"Minimap.ZoomIn",
-	"Minimap.ZoomOut",
+	MinimapCluster.ZoomIn,
+	MinimapCluster.ZoomOut,
 	"FeedbackUIButton",
-    "MinimapCluster.InstanceDifficulty",
+    MinimapCluster.InstanceDifficulty,
 	"MiniMapLFGFrame",
 	"GuildInstanceDifficulty",
     "ExpansionLandingPageMinimapButton",
@@ -35,13 +34,8 @@ Mappy.MinimapAttachedFrames = {
 	"WorldStateCaptureBar2",
 	"WorldStateCaptureBar3",
 	"WorldStateCaptureBar4",
-	--"Boss1TargetFrame",
-	--"Boss2TargetFrame",
-	--"Boss3TargetFrame",
-	--"Boss4TargetFrame",
 	"DurabilityFrame",
 	"ArenaEnemyFrames",
-	--"ObjectiveTrackerFrame",
 }
 
 Mappy.OtherAddonButtonNames = {
@@ -54,7 +48,7 @@ Mappy.IgnoreFrames = {
 	MiniMapPing = true,
 	MinimapToggleButton = true,
 	MinimapZoneTextButton = true,
-	
+
 	CT_RASetsFrame = true,
 }
 
@@ -72,7 +66,7 @@ Mappy.CornerInfo = {
 		VertInsetDir = -1,
 		IsVert = true,
 	},
-	
+
 	BOTTOMRIGHT = {
 		NextCorner = "BOTTOMLEFT",
 		AnchorPoint = "RIGHT",
@@ -84,7 +78,7 @@ Mappy.CornerInfo = {
 		VertInsetDir = 1,
 		IsVert = false,
 	},
-	
+
 	BOTTOMLEFT = {
 		NextCorner = "TOPLEFT",
 		AnchorPoint = "BOTTOM",
@@ -96,7 +90,7 @@ Mappy.CornerInfo = {
 		VertInsetDir = 1,
 		IsVert = true,
 	},
-	
+
 	TOPLEFT = {
 		NextCorner = "TOPRIGHT",
 		AnchorPoint = "LEFT",
@@ -122,7 +116,7 @@ Mappy.CornerInfoCCW = {
 		VertInsetDir = -1,
 		IsVert = false,
 	},
-	
+
 	BOTTOMRIGHT = {
 		NextCorner = "TOPRIGHT",
 		AnchorPoint = "BOTTOM",
@@ -193,11 +187,7 @@ function Mappy:AddonLoaded(pEventID, pAddonName)
 	if not self.CurrentProfile then
 		self.CurrentProfile = gMappy_Settings.Profiles.DEFAULT
 	end
-	
-	-- Hook Minimap_UpdateRotationSetting to enforce the visibility of the 'N' arrow
-	-- Shushuda
-	--hooksecurefunc("Minimap_UpdateRotationSetting", function (...) Mappy:Minimap_UpdateRotationSetting(...) end)
-	
+
 	self.SchedulerLib:ScheduleUniqueTask(0.5, self.InitializeMinimap, self)
 	
 	self.OptionsPanel = self:New(self._OptionsPanel, UIParent)
@@ -299,13 +289,7 @@ function Mappy:InitializeMinimap()
 	
 	self:InitializeDragging()
 	self:InitializeSquareShape()
-	
-	-- Get rid of the hide/show button
-	if MinimapToggleButton then -- Not in patch 3.3
-		MinimapToggleButton:Hide()
-	end
-	-- Shushuda
-	--MinimapBorderTop:Hide()
+
     MinimapCluster.BorderTop:Hide()
 	
 	-- Add scroll wheel support
@@ -314,14 +298,11 @@ function Mappy:InitializeMinimap()
 	
 	-- Add the coordinates display
 	self.CoordString = Minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    -- TODO: Allow changing of text size
 	self.CoordString:SetHeight(12)
-	self.CoordString:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 15, 15)
+	self.CoordString:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 5, 5)
 	
 	self.SchedulerLib:ScheduleRepeatingTask(0.2, self.Update, self)
-	
-	-- Adjust the objective tracker so it lines up nicely with the map
-    -- Shushuda
-	--ObjectiveTrackerFrame:SetPoint("TOPRIGHT", MinimapCluster, "BOTTOMRIGHT", 10, -30)
 
 	self:InitializeAttachedFrames()
 	
@@ -568,17 +549,22 @@ end
 function Mappy:FindMinimapButtons()
 	self.MinimapButtons = {}
 	self.MinimapButtonsByFrame = {}
-	
-	for _, vButtonName in ipairs(self.BlizzardButtonNames) do
-		self.IgnoreFrames[vButtonName] = true
-	
-		local	vButton = _G[vButtonName]
-		
-		if vButton then
-			self:RegisterMinimapButton(vButton, true)
-		end
-	end
-	
+
+    for _, vButtonName in ipairs(self.BlizzardButtonNames) do
+        self.IgnoreFrames[vButtonName] = true
+
+        -- filter frame names from frame globals
+        if type(vButtonName) == "string" then
+            local vButton = _G[vButtonName]
+        else
+            local vButton = vButtonName
+        end
+
+        if vButton then
+            self:RegisterMinimapButton(vButton, true)
+        end
+    end
+
 	for _, vButtonName in ipairs(self.OtherAddonButtonNames) do
 		self.IgnoreFrames[vButtonName] = true
 	
@@ -635,14 +621,6 @@ function Mappy:ConfigureMinimapOptions()
 		Minimap.ZoomIn:Show()
 		Minimap.ZoomOut:Show()
 	end
-    -- Shushuda
-	--[[
-	if self.CurrentProfile.HideWorldMap then
-		MiniMapWorldMapButton:Hide()
-	else
-		MiniMapWorldMapButton:Show()
-	end
-	]]--
     -- Shushuda
 	if self.CurrentProfile.HideZoneName then
         MinimapCluster.ZoneTextButton:Hide()
@@ -752,9 +730,7 @@ end
 
 function Mappy:InitializeSquareShape()
 	Minimap:SetMaskTexture("Interface\\Addons\\Mappy\\Textures\\MinimapMask")
-    -- Shushuda
-    --MinimapBackdrop:Hide()
-	--MinimapBorder:SetTexture(nil)
+    MinimapCompassTexture:SetTexture(nil)
 	
 	-- 10/14/2020 - Updated code to use the new Backdrop templates -LynchburgJack
 	MinimapBackdrop = CreateFrame("Frame", "Backdrop", MinimapBackdrop, BackdropTemplateMixin and "BackdropTemplate")
@@ -788,12 +764,14 @@ function Mappy:InitializeSquareShape()
 	MinimapBackdrop:ClearAllPoints()
 	MinimapBackdrop:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -4, 4)
 	MinimapBackdrop:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 4, -4)
-	
-	-- Move the zone text to the top
-	-- Shushuda
+
+	-- Move the zone text to the top and make it wider
 	MinimapCluster.ZoneTextButton:ClearAllPoints()
 	MinimapCluster.ZoneTextButton:SetPoint("BOTTOM", Minimap, "TOP", 0, 4)
-	
+    MinimapCluster.ZoneTextButton:SetSize(180, 12)
+    MinimapZoneText:SetAllPoints(MinimapCluster.ZoneTextButton)
+    MinimapZoneText:SetJustifyH("MIDDLE")
+
 	MinimapBackdrop:ApplyBackdrop()
 end
 
@@ -1204,9 +1182,14 @@ function Mappy:ConfigureMinimap()
     -- TODO: Move tracking, mail and calendar buttons to logical places
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
-        --GameTimeFrame:SetPoint("")
     end
-	
+    if MinimapCluster.MailFrame then
+        MinimapCluster.MailFrame:ClearAllPoints()
+    end
+    if MinimapCluster.Tracking then
+         MinimapCluster.Tracking:ClearAllPoints()
+    end
+
 	-- Stack all the known buttons
 	
 	self:BeginStackingButtons()
