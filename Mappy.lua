@@ -306,6 +306,7 @@ function Mappy:InitializeMinimap()
 	self:InitializeSquareShape()
 
     MinimapCluster.BorderTop:Hide()
+    Minimap.ZoomHitArea:Hide()
 	
 	-- Add scroll wheel support
 	Minimap:SetScript("OnMouseWheel", function (pMinimap, pDirection) self:MinimapMouseWheel(pDirection) end)
