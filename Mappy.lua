@@ -15,7 +15,6 @@ Mappy.BlizzardButtonNames = {
     "GameFrameTime",
     MinimapCluster.MailFrame,
     MinimapCluster.Tracking,
-    MinimapCluster.Tracking.Button,
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
 	"MiniMapVoiceChatFrame",
