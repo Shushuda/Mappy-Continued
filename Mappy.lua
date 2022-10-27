@@ -316,7 +316,7 @@ function Mappy:InitializeMinimap()
 	self.CoordString = Minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     -- TODO: Allow changing of text size
 	self.CoordString:SetHeight(12)
-	self.CoordString:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 5, 5)
+	self.CoordString:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 5, 4)
 	
 	self.SchedulerLib:ScheduleRepeatingTask(0.2, self.Update, self)
 
@@ -1264,7 +1264,7 @@ function Mappy:ConfigureMinimap()
         local TimeManagerBG = TimeManagerClockButton:CreateTexture(nil, "BACKGROUND")
         -- Interface\\Minimap\\MinimapClock
         TimeManagerBG:SetTexture(1068154)
-        TimeManagerBG:SetPoint("CENTER", TimeManagerClockTicker, "CENTER", 2, -3)
+        TimeManagerBG:SetPoint("CENTER", TimeManagerClockTicker, "CENTER", 3, -3)
         TimeManagerBG:SetSize(62, 29)
     end
     
