@@ -1017,11 +1017,13 @@ function Mappy:ConfigureMinimap()
         TimeManagerClockTicker:SetJustifyH("MIDDLE")
         TimeManagerClockTicker:SetJustifyV("MIDDLE")
 
-        local TimeManagerBG = TimeManagerClockButton:CreateTexture(nil, "BACKGROUND")
+        if not self.TimeManagerBG then
+            self.TimeManagerBG = TimeManagerClockButton:CreateTexture(nil, "BACKGROUND")
+        end
         -- Interface\\Minimap\\MinimapClock
-        TimeManagerBG:SetTexture(1068154)
-        TimeManagerBG:SetPoint("CENTER", TimeManagerClockTicker, "CENTER", 3, -3)
-        TimeManagerBG:SetSize(62, 29)
+        self.TimeManagerBG:SetTexture(1068154)
+        self.TimeManagerBG:SetPoint("CENTER", TimeManagerClockTicker, "CENTER", 3, -3)
+        self.TimeManagerBG:SetSize(62, 29)
     end
     
     if GameTimeFrame then
