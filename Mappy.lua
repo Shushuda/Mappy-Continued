@@ -31,16 +31,6 @@ Mappy.BlizzardMinimalistButtons = {
     [MinimapCluster.Tracking] = true,
 }
 
-Mappy.MinimapAttachedFrames = {
-	"VehicleSeatIndicator",
-	"WorldStateCaptureBar1",
-	"WorldStateCaptureBar2",
-	"WorldStateCaptureBar3",
-	"WorldStateCaptureBar4",
-	"DurabilityFrame",
-	"ArenaEnemyFrames",
-}
-
 Mappy.OtherAddonButtonNames = {
 	"CT_RASets_Button",
 }
@@ -68,6 +58,7 @@ Mappy.CornerInfo = {
 		HorizInsetDir = -1,
 		VertInsetDir = -1,
 		IsVert = true,
+        OffsetPositive = false,
 	},
 
 	BOTTOMRIGHT = {
@@ -80,6 +71,7 @@ Mappy.CornerInfo = {
 		HorizInsetDir = -1,
 		VertInsetDir = 1,
 		IsVert = false,
+        OffsetPositive = false,
 	},
 
 	BOTTOMLEFT = {
@@ -92,6 +84,7 @@ Mappy.CornerInfo = {
 		HorizInsetDir = 1,
 		VertInsetDir = 1,
 		IsVert = true,
+        OffsetPositive = true,
 	},
 
 	TOPLEFT = {
@@ -104,6 +97,7 @@ Mappy.CornerInfo = {
 		HorizInsetDir = 1,
 		VertInsetDir = -1,
 		IsVert = false,
+        OffsetPositive = true,
 	},
 }
 
@@ -118,6 +112,7 @@ Mappy.CornerInfoCCW = {
 		HorizInsetDir = -1,
 		VertInsetDir = -1,
 		IsVert = false,
+        OffsetPositive = false,
 	},
 
 	BOTTOMRIGHT = {
@@ -130,6 +125,7 @@ Mappy.CornerInfoCCW = {
 		HorizInsetDir = -1,
 		VertInsetDir = 1,
 		IsVert = true,
+        OffsetPositive = true,
 	},
 	
 	BOTTOMLEFT = {
@@ -142,6 +138,7 @@ Mappy.CornerInfoCCW = {
 		HorizInsetDir = 1,
 		VertInsetDir = 1,
 		IsVert = false,
+        OffsetPositive = true,
 	},
 	
 	TOPLEFT = {
@@ -154,6 +151,7 @@ Mappy.CornerInfoCCW = {
 		HorizInsetDir = 1,
 		VertInsetDir = -1,
 		IsVert = true,
+        OffsetPositive = false,
 	},
 }
 
@@ -240,20 +238,16 @@ function Mappy:InitializeSettings()
 				OffsetY = -32,
 				
 				HideTimeOfDay = false,
-				HideZoom = false,
-				HideWorldMap = false,
 				HideZoneName = false,
 				GhostMinimap = false,
 				AutoArrangeButtons = true,
 				StackToScreen = false,
 				RotateMinimap = GetCVar("rotateMinimap") == "1",
-				HideNorthLabel = false,
 				HideBorder = false,
 				HideTracking = false,
 				HideTimeManagerClock = false,
 				FlashGatherNodes = false,
 				UseNormalIcons = false, -- use large icons
-				DetachManagedFrames = false
 			},
 			gather =
 			{
@@ -268,20 +262,16 @@ function Mappy:InitializeSettings()
 				OffsetY = 0,
 				
 				HideTimeOfDay = false,
-				HideZoom = false,
-				HideWorldMap = false,
 				HideZoneName = false,
 				GhostMinimap = true,
 				AutoArrangeButtons = true,
 				StackToScreen = true,
 				RotateMinimap = true,
-				HideNorthLabel = false,
 				HideBorder = true,
 				HideTracking = false,
 				HideTimeManagerClock = false,
 				FlashGatherNodes = true,
 				UseNormalIcons = false, -- use large icons
-				DetachManagedFrames = true,
 				AttachmentPosition = {
 					Point = "TOPRIGHT",
 					RelativeTo = UIParent,
@@ -289,7 +279,6 @@ function Mappy:InitializeSettings()
 					OffsetX = -80,
 					OffsetY = -50
 				},
-				LockManagedFrames = true,
 			},
 		},
 	}
@@ -320,8 +309,6 @@ function Mappy:InitializeMinimap()
 	
 	self.SchedulerLib:ScheduleRepeatingTask(0.2, self.Update, self)
 
-	self:InitializeAttachedFrames()
-	
 	-- Register for events
 	self.EventLib:RegisterEvent("ZONE_CHANGED", self.ZoneChanged, self)
 	self.EventLib:RegisterEvent("ZONE_CHANGED_INDOORS", self.ZoneChanged, self)
@@ -339,217 +326,6 @@ function Mappy:InitializeMinimap()
 	
 	-- Monitor the mounted state so we can determine which opacity setting to use
 	self.SchedulerLib:ScheduleUniqueRepeatingTask(0.5, self.UpdateMountedState, self)
-end
-
-function Mappy:InitializeAttachedFrames()
-	-- 10/14/2020 - Updated code to use the new Backdrop templates -LynchburgJack
-	--local attachmentFrame = CreateFrame("Frame", "MappyAttachmentFrame", UIParent, "SecureFrameTemplate")
-	local AttachmentFrame = CreateFrame("Frame", "MappyAttachmentFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate")
-	self.AttachmentFrame = AttachmentFrame
-
-	-- Give it an initial position
-	self.AttachmentFrame:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
-	
-	self.AttachmentFrame:SetWidth(16)
-	self.AttachmentFrame:SetHeight(8)
-	self.AttachmentFrame:SetFrameStrata("DIALOG")
-	
-	self.AttachmentFrame.Texture = self.AttachmentFrame:CreateTexture(nil, "OVERLAY")
-	self.AttachmentFrame.Texture:SetAllPoints()
-	self.AttachmentFrame.Texture:SetTexture(1, 1, 0)
-	
-	self:ActivateAttachmentFrame()
-end
-
-function Mappy:DeactivateAttachmentFrame()
-	self.AttachmentFrame:RegisterForDrag()
-	self.AttachmentFrame:EnableMouse(false)
-	self.AttachmentFrame:SetMovable(false)
-	
-	self.AttachmentFrame:SetScript("OnDragStart", nil)
-	self.AttachmentFrame:SetScript("OnDragStop", nil)
-end
-
-function Mappy:ActivateAttachmentFrame()
-	self.AttachmentFrame:RegisterForDrag("LeftButton")
-	self.AttachmentFrame:EnableMouse(true)
-	self.AttachmentFrame:SetMovable(true)
-
-	self.AttachmentFrame:SetScript("OnDragStart", function (frame)
-		frame:StartMoving()
-	end)
-	
-	self.AttachmentFrame:SetScript("OnDragStop", function (frame)
-		frame:StopMovingOrSizing()
-		self.CurrentProfile.AttachmentPosition = self:GetFramePosition(frame)
-	end)
-end
-
-function Mappy:RecordSetPointData(frame)
-	-- Wipe the anchor memory on ClearAllPoints
-	hooksecurefunc(frame, "ClearAllPoints", function (frame)
-		frame.Mappy_Anchors = nil
-	end)
-
-	-- Record the anchor points
-	hooksecurefunc(frame, "SetPoint", function (frame, anchorPoint, relativeTo, relativePoint, offsetX, offsetY)
-		local anchors = frame.Mappy_Anchors
-		if not anchors then
-			anchors = {}
-			frame.Mappy_Anchors = anchors
-		end
-		
-		local anchor = anchors[anchorPoint]
-		if not anchor then
-			anchor = {}
-			anchors[anchorPoint] = anchor
-		end
-
-		assert(relativeTo ~= self.AttachmentFrame)
-
-		anchor.relativeTo = relativeTo
-		anchor.relativePoint = relativePoint
-		anchor.offsetX = offsetX
-		anchor.offsetY = offsetY
-
-		-- Call the original SetPoint if not in combat lockdown
-		if not InCombatLockdown() then
-			local relativeTo = relativeTo
-			if self.CurrentProfile.DetachManagedFrames and (relativeTo == "MinimapCluster" or relativeTo == MinimapCluster) then
-				relativeTo = self.AttachmentFrame
-			end
-			frame:Mappy_SetPoint(anchorPoint, relativeTo, relativePoint, offsetX, offsetY)
-		end
-	end)
-end
-
-function Mappy:HookAttachedFrames()
-	if not self.AttachmentFrame
-	or not self.CurrentProfile.DetachManagedFrames then
-		return
-	end
-	
-	for _, frameName in pairs(self.MinimapAttachedFrames) do
-		local frame = _G[frameName]
-		
-		if frame and frame.SetPoint and not frame.Mappy_DidHook then
-			frame.Mappy_DidHook = true
-
-			-- Save the existing SetPoint function 
-			frame.Mappy_SetPoint = frame.SetPoint
-
-			-- Point the original SetPoint at IsVisible instead. IsVisible is a secure function
-			-- which takes no parameters and affects no state, making it a good choice for this purpose
-			frame.SetPoint = frame.IsVisible
-
-			-- Hook the existing SetPoint so the parameters can be recorded
-			self:RecordSetPointData(frame)
-
-			-- Save the hooked SetPoint for re-use later
-			frame.Mappy_HookedSetPoint = frame.SetPoint
-		end
-
-		if frame then
-			-- Capture the existing anchors
-			local numPoints = frame:GetNumPoints()
-			frame.Mappy_Anchors = {}
-			for pointIndex = 1, numPoints do
-				local point, relativeTo, relativePoint, offsetX, offsetY = frame:GetPoint(pointIndex)
-				if relativeTo == self.AttachmentFrame then
-					relativeTo = MinimapCluster
-				end
-				frame.Mappy_Anchors[point] = {
-					relativeTo = relativeTo,
-					relativePoint = relativePoint,
-					offsetX = offsetX,
-					offsetY = offsetY
-				}
-			end
-
-			-- Use the hooked SetPoint
-			frame.SetPoint = frame.Mappy_HookedSetPoint
-		end
-	end
-
-	-- Refresh the anchors
-	self:ReanchorDetachedFrames()
-end
-
-function Mappy:UnhookAttachedFrames()
-	assert(not self.CurrentProfile.DetachManagedFrames, "unhooking but detach is still set")
-
-	-- Refresh the anchors
-	self:ReanchorDetachedFrames()
-	
-	-- Restore each frame to use the original SetPoint function
-	for _, frameName in pairs(self.MinimapAttachedFrames) do
-		local frame = _G[frameName]
-		if frame then
-			frame.SetPoint = frame.Mappy_SetPoint
-		end
-	end
-end
-
-function Mappy:ReanchorDetachedFrames()
-	-- Don't allow in combat
-	if InCombatLockdown() then
-		Mappy:TestMessage("ReanchorDetachedFrames: In lockdown")
-		return
-	end
-	
-	--
-	local detachManagedFrames = self.CurrentProfile.DetachManagedFrames
-	for _, frameName in pairs(self.MinimapAttachedFrames) do
-		local frame = _G[frameName]
-		if frame and frame.Mappy_Anchors then
-			for anchorPoint, anchor in pairs(frame.Mappy_Anchors) do
-				local relativeTo = anchor.relativeTo
-				local relativeToName = tostring(relativeTo)
-
-				if type(relativeTo) == "table" and relativeTo.GetName then
-					relativeToName = relativeTo:GetName()
-				end
-
-				assert(relativeTo ~= self.AttachmentFrame)
-
-				if detachManagedFrames and (relativeTo == "MinimapCluster" or relativeTo == MinimapCluster) then
-					relativeTo = self.AttachmentFrame
-					relativeToName = "AttachmentFrame"
-				end
-				
-				-- Call the real SetPoint
-				frame:Mappy_SetPoint(anchorPoint, relativeTo, anchor.relativePoint, anchor.offsetX, anchor.offsetY)
-			end
-		end
-	end
-end
-
-function Mappy:UpdateAttachmentFrame()
-	if InCombatLockdown() then
-		self:ErrorMessage("InCombatLockdown during UpdateAttachmentFrame")
-		return
-	end
-
-	self.AttachmentFrame:ClearAllPoints()
-	
-	if self.CurrentProfile.DetachManagedFrames then
-		if self.CurrentProfile.AttachmentPosition then
-			self:SetFramePosition(self.AttachmentFrame, self.CurrentProfile.AttachmentPosition)
-		else
-			self.AttachmentFrame:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
-		end
-		
-		if self.CurrentProfile.LockManagedFrames then
-			self.AttachmentFrame:Hide()
-		else
-			self.AttachmentFrame:Show()
-		end
-		
-		self:HookAttachedFrames()
-	else
-		self.AttachmentFrame:Hide()
-		self:UnhookAttachedFrames()
-	end
 end
 
 function Mappy:ReparentLandmarks()
@@ -755,8 +531,6 @@ function Mappy:InitializeDragging()
     MinimapCluster:SetUserPlaced(true)
 
     Minimap:RegisterForDrag("LeftButton")
-    Minimap:SetScript("OnDragStart", function() Mappy:StartMovingMinimap() end)
-    Minimap:SetScript("OnDragStop", function() Mappy:StopMovingMinimap() end)
 
     MinimapCluster.Mappy_SetPoint = MinimapCluster.SetPoint
     MinimapCluster.Mappy_ClearAllPoints = MinimapCluster.ClearAllPoints
@@ -798,23 +572,8 @@ function Mappy:InitializeSquareShape()
 	MinimapBackdrop:SetBackdrop(MinimapBackdrop.backdropInfo)
 	MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 1.0)
 	MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
-	-- 10/14/2020 SetAlpha defaults to 1 now and is set above in SetBackdropColor (r,g,b,a) - LynchburgJack
-	-- MinimapBackdrop:SetAlpha(1.0)
 
-	--[[ 10/14/2020 - Old code -LynchburgJack
-	
-	MinimapBackdrop:SetBackdrop({
-		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		tile = true, tileSize = 16, edgeSize = 16,
-		insets = {left = 3, right = 3, top = 3, bottom = 3}})
-
-	MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75)
-	MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 0.0)
-	MinimapBackdrop:SetAlpha(1.0)
-	--]]
 	-- Change the backdrop to size with the map
-	
 	MinimapBackdrop:ClearAllPoints()
 	MinimapBackdrop:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -4, 4)
 	MinimapBackdrop:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 4, -4)
@@ -835,16 +594,6 @@ end
 
 function Mappy:SetCounterClockwise(pCCW)
 	self.CurrentProfile.CCW = pCCW
-	self:LoadProfile(self.CurrentProfile)
-end
-
-function Mappy:SetDetachManagedFrames(pDetach)
-	self.CurrentProfile.DetachManagedFrames = pDetach
-	self:LoadProfile(self.CurrentProfile)
-end
-
-function Mappy:SetLockManagedFrames(pLock)
-	self.CurrentProfile.LockManagedFrames = pLock
 	self:LoadProfile(self.CurrentProfile)
 end
 
@@ -1145,12 +894,17 @@ function Mappy:StackButton(pButton, pNextButton)
 		end
 	end
 
+    if self.StackingInfo.CornerInfo.OffsetPositive then
+        MiniOffsetH = -MiniOffsetH
+        MiniOffsetV = -MiniOffsetV
+    end
+
     if self.StackingInfo.CornerInfo.IsVert then
         MiniOffsetH = 0
     else
         MiniOffsetV = 0
     end
-	
+
 	-- Stack the button
 	
 	MinimapCluster:SetAlpha(1)
@@ -1241,8 +995,6 @@ function Mappy:ConfigureMinimap()
 	self:ConfigureMinimapOptions()
 	
 	self:SetFramePosition(MinimapCluster, self.CurrentProfile)
-	
-	self:UpdateAttachmentFrame()
 	
 	Minimap:SetWidth(self.CurrentProfile.MinimapSize)
 	Minimap:SetHeight(self.CurrentProfile.MinimapSize)
@@ -1637,9 +1389,6 @@ end
 function Mappy:RegenEnabled()
 	self.InCombat = false
 
-	-- Refresh all the attached frames
-	self:ReanchorDetachedFrames()
-
 	-- Do a reconfiguration after a short delay
 	self.SchedulerLib:ScheduleUniqueTask(0.25, self.ConfigureMinimap, self)
 end
@@ -1647,9 +1396,6 @@ end
 function Mappy:RegenDisabled()
 	self.InCombat = true
 
-	-- Hide the attachment frame during combat
-	self.AttachmentFrame:Hide()
-	
 	-- Adjust the alpha for combat
 	self:AdjustAlpha()
 end
@@ -1693,10 +1439,10 @@ end
 function Mappy:SetHideTracking(pHide)
 	if pHide then
 		self.CurrentProfile.HideTracking = true
-		MiniMapCluster.Tracking:Hide()
+		MinimapCluster.Tracking:Hide()
 	else
 		self.CurrentProfile.HideTracking = nil
-		MiniMapCluster.Tracking:Show()
+		MinimapCluster.Tracking:Show()
 	end
 end
 
@@ -1720,28 +1466,6 @@ function Mappy:SetHideTimeOfDay(pHide)
 	end
 end
 
-function Mappy:SetHideZoom(pHide)
-	if pHide then
-		self.CurrentProfile.HideZoom = true
-		Minimap.ZoomIn:Hide()
-		Minimap.ZoomOut:Hide()
-	else
-		self.CurrentProfile.HideZoom = nil
-		Minimap.ZoomIn:Show()
-		Minimap.ZoomOut:Show()
-	end
-end
-
-function Mappy:SetHideWorldMap(pHide)
-	if pHide then
-		self.CurrentProfile.HideWorldMap = true
-		MiniMapWorldMapButton:Hide()
-	else
-		self.CurrentProfile.HideWorldMap = nil
-		MiniMapWorldMapButton:Show()
-	end
-end
-
 function Mappy:SetHideCoordinates(pHide)
 	if pHide then
 		self.CurrentProfile.HideCoordinates = true
@@ -1758,26 +1482,6 @@ function Mappy:SetHideZoneName(pHide)
 	else
 		self.CurrentProfile.HideZoneName = nil
 		MinimapCluster.ZoneTextButton:Show()
-	end
-end
-
-function Mappy:SetLockPosition(pLock)
-	if pLock then
-		self.CurrentProfile.LockPosition = true
-	else
-		self.CurrentProfile.LockPosition = nil
-	end
-end
-
-function Mappy:SetHideNorthLabel(pHide)
-	if pHide then
-		self.CurrentProfile.HideNorthLabel = true
-		MinimapNorthTag:Hide()
-	else
-		self.CurrentProfile.HideNorthLabel = nil
-		if GetCVar("rotateMinimap") ~= "1" then
-			MinimapNorthTag:Show()
-		end
 	end
 end
 
@@ -1938,42 +1642,6 @@ function Mappy:MinimapMouseWheel(pWheelDirection)
 			Minimap.ZoomOut:Disable()
 		end
 	end
-end
-
-function Mappy:StartMovingMinimap()
-	if self.CurrentProfile.LockPosition then
-		return
-	end
-	
-	-- Enable moving
-	
-	MinimapCluster.SetPoint = MinimapCluster.Mappy_SetPoint
-	MinimapCluster.ClearAllPoints = MinimapCluster.Mappy_ClearAllPoints
-	
-	-- Start moving
-	
-	MinimapCluster:StartMoving()
-end
-
-function Mappy:StopMovingMinimap()
-	if self.CurrentProfile.LockPosition then
-		return
-	end
-	
-	-- Stop moving
-	
-	MinimapCluster:StopMovingOrSizing()
-	
-	-- Disable moving
-	
-	MinimapCluster.SetPoint = function () end
-	MinimapCluster.ClearAllPoints = function () end
-	
-	-- Save the new position
-	
-	MinimapCluster:SetUserPlaced(true) -- Must leave this true or UIParent will screw up laying out windows
-	
-	self:PositionChanged()
 end
 
 function Mappy:StartGatherFlash()
@@ -2168,10 +1836,6 @@ end
 
 function Mappy:Minimap_UpdateRotationSetting()
 	self.CurrentProfile.RotateMinimap = GetCVar("rotateMinimap") == "1"
-	
-	if self.CurrentProfile.HideNorthLabel then
-		MinimapNorthTag:Hide()
-	end
 end
 
 ----------------------------------------
@@ -2276,50 +1940,6 @@ function Mappy:GetModelTopRight(pModel)
 	
 	return (pModel:GetWidth()) / vHyp, (pModel:GetHeight()) / vHyp
 end
-
-----------------------------------------
--- Hook QuestHelper if present
-----------------------------------------
-
-function Mappy:HookQuestHelper()
-	--[[
-	if not QuestHelper
-	or not DongleStub then
-		Mappy:DebugMessage("QuestHelper not found")
-		return
-	end
-	
-	local AstrolabeMapMonitor = DongleStub("AstrolabeMapMonitor")
-	
-	if not AstrolabeMapMonitor then
-		Mappy:DebugMessage("AstrolabeMapMonitor not found")
-		return
-	end
-	
-	for vAstrolabe, vVersion in pairs(AstrolabeMapMonitor.AstrolabeLibrarys) do
-		if vAstrolabe.processingFrame then
-			Mappy:DebugMessage("Found an Astrolabe with processingFrame, re-parenting")
-			
-			vAstrolabe.processingFrame:SetParent(UIParent)
-		else
-			Mappy:DebugTable("Astrolabe"..tostring(vAstrolabe), vAstrolabe, 1)
-		end
-	end
-	
-	QuestHelper.Mappy_CreateMipmapDodad = QuestHelper.CreateMipmapDodad
-	
-	function QuestHelper:CreateMipmapDodad()
-		local vIcon = self:Mappy_CreateMipmapDodad()
-		
-		vIcon:SetParent(MinimapCluster)
-		vIcon:SetFrameLevel(MinimapCluster:GetFrameLevel() + 5)
-		
-		return vIcon
-	end
-	]]
-end
-
-Mappy:HookQuestHelper()
 
 ----------------------------------------
 -- Gatherer support
@@ -2570,75 +2190,47 @@ function Mappy._OptionsPanel:Construct(pParent)
 	MappyMovingAlphaSliderText:SetText("Movement Alpha")
 	self.MovingAlphaSlider:SetMinMaxValues(0, 1)
 	
-    -- Shushuda
-    --[[
 	-- Hide coordinates
 
-	self.HideCoordinatesCheckbutton = CreateFrame("Checkbutton", "MappyHideCoordinatesCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.HideCoordinatesCheckbutton = CreateFrame("CheckButton", "MappyHideCoordinatesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideCoordinatesCheckbutton:SetPoint("TOPLEFT", self.AlphaSlider, "TOPLEFT", -5, -45)
 	self.HideCoordinatesCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideCoordinates(self:GetChecked()) end)
 	MappyHideCoordinatesCheckbuttonText:SetText("Hide coordinates")
 
 	-- Hide zone name
 
-	self.HideZoneNameCheckbutton = CreateFrame("Checkbutton", "MappyHideZoneNameCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.HideZoneNameCheckbutton = CreateFrame("CheckButton", "MappyHideZoneNameCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideZoneNameCheckbutton:SetPoint("TOPLEFT", self.HideCoordinatesCheckbutton, "TOPLEFT", 0, -25)
 	self.HideZoneNameCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideZoneName(self:GetChecked()) end)
 	MappyHideZoneNameCheckbuttonText:SetText("Hide zone name")
 
-	-- Hide North arrow
-
-	self.HideNorthLabelCheckbutton = CreateFrame("Checkbutton", "MappyHideNorthLabelCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.HideNorthLabelCheckbutton:SetPoint("TOPLEFT", self.HideZoneNameCheckbutton, "TOPLEFT", 0, -25)
-	self.HideNorthLabelCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideNorthLabel(self:GetChecked()) end)
-	MappyHideNorthLabelCheckbuttonText:SetText("Hide North label")
-	
 	-- Hide background
 
-	self.HideBorderCheckbutton = CreateFrame("Checkbutton", "MappyHideBorderCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.HideBorderCheckbutton:SetPoint("TOPLEFT", self.HideNorthLabelCheckbutton, "TOPLEFT", 0, -25)
+	self.HideBorderCheckbutton = CreateFrame("CheckButton", "MappyHideBorderCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideBorderCheckbutton:SetPoint("TOPLEFT", self.HideZoneNameCheckbutton, "TOPLEFT", 0, -25)
 	self.HideBorderCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideBorder(self:GetChecked()) end)
 	MappyHideBorderCheckbuttonText:SetText("Hide border")
 	
 	-- Flash gathering nodes
 	
-	self.FlashGatherNodesCheckbutton = CreateFrame("Checkbutton", "MappyFlashGatherNodesCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.FlashGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyFlashGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.FlashGatherNodesCheckbutton:SetPoint("TOPLEFT", self.HideBorderCheckbutton, "TOPLEFT", 0, -40)
 	self.FlashGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetFlashGatherNodes(self:GetChecked()) end)
 	MappyFlashGatherNodesCheckbuttonText:SetText("Flash gathering nodes")
 
 	-- Large gathering nodes
 	
-	self.LargeGatherNodesCheckbutton = CreateFrame("Checkbutton", "MappyLargeGatherNodesCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.LargeGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyLargeGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.LargeGatherNodesCheckbutton:SetPoint("TOPLEFT", self.FlashGatherNodesCheckbutton, "TOPLEFT", 0, -25)
 	self.LargeGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetLargeGatherNodes(self:GetChecked()) end)
 	MappyLargeGatherNodesCheckbuttonText:SetText("Large gathering nodes")
 
-	-- Lock position
-	self.LockPositionCheckbutton = CreateFrame("Checkbutton", "MappyLockPositionCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.LockPositionCheckbutton:SetPoint("TOPLEFT", self.LargeGatherNodesCheckbutton, "TOPLEFT", 0, -40)
-	self.LockPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetLockPosition(self:GetChecked()) end)
-	MappyLockPositionCheckbuttonText:SetText("Lock position")
-
 	-- Ghost
 	
-	self.GhostCheckbutton = CreateFrame("Checkbutton", "MappyGhostCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.GhostCheckbutton:SetPoint("TOPLEFT", self.LockPositionCheckbutton, "TOPLEFT", 0, -25)
+	self.GhostCheckbutton = CreateFrame("CheckButton", "MappyGhostCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.GhostCheckbutton:SetPoint("TOPLEFT", self.LargeGatherNodesCheckbutton, "TOPLEFT", 0, -40)
 	self.GhostCheckbutton:SetScript("OnClick", function (self) Mappy:SetGhost(self:GetChecked()) end)
 	MappyGhostCheckbuttonText:SetText("Pass clicks through")
-
-	-- Attached frames
-	
-	self.DetachManagedFramesCheckbutton = CreateFrame("Checkbutton", "MappyDetachManagedFramesCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.DetachManagedFramesCheckbutton:SetPoint("TOPLEFT", self.GhostCheckbutton, "TOPLEFT", 0, -40)
-	self.DetachManagedFramesCheckbutton:SetScript("OnClick", function (button) Mappy:SetDetachManagedFrames(button:GetChecked()) self:OnShow() end)
-	MappyDetachManagedFramesCheckbuttonText:SetText("Detach UI frames (quest watch, durability, etc.)")
-
-	self.LockManagedFramesCheckbutton = CreateFrame("Checkbutton", "MappyLockManagedFramesCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.LockManagedFramesCheckbutton:SetPoint("TOPLEFT", self.DetachManagedFramesCheckbutton, "TOPLEFT", 0, -25)
-	self.LockManagedFramesCheckbutton:SetScript("OnClick", function (button) Mappy:SetLockManagedFrames(button:GetChecked()) end)
-	MappyLockManagedFramesCheckbuttonText:SetText("Lock UI frames position")
-    ]]--
 
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
@@ -2652,26 +2244,13 @@ function Mappy._OptionsPanel:OnShow()
 	self.CombatAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapCombatAlpha or 0.2)
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
 	-- Shushuda
-    --[[
     self.HideCoordinatesCheckbutton:SetChecked(Mappy.CurrentProfile.HideCoordinates)
 	self.HideZoneNameCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoneName)
-	self.HideNorthLabelCheckbutton:SetChecked(Mappy.CurrentProfile.HideNorthLabel)
 	self.HideBorderCheckbutton:SetChecked(Mappy.CurrentProfile.HideBorder)
 	self.FlashGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.FlashGatherNodes)
 	self.LargeGatherNodesCheckbutton:SetChecked(not Mappy.CurrentProfile.NormalGatherNodes)
-	self.LockPositionCheckbutton:SetChecked(Mappy.CurrentProfile.LockPosition)
 	self.GhostCheckbutton:SetChecked(Mappy.CurrentProfile.GhostMinimap)
-	
-	self.DetachManagedFramesCheckbutton:SetChecked(Mappy.CurrentProfile.DetachManagedFrames)
-	self.LockManagedFramesCheckbutton:SetChecked(Mappy.CurrentProfile.LockManagedFrames)
-	
-	if Mappy.CurrentProfile.DetachManagedFrames then
-		self.LockManagedFramesCheckbutton:Enable()
-	else
-		self.LockManagedFramesCheckbutton:Disable()
-	end
-    ]]--
-	
+
 	Mappy.DisableUpdates = false
 end
 
@@ -2698,85 +2277,68 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 15, -15)
 	self.Title:SetText("Mappy Buttons")
 	
-    -- Shushuda
 	-- Hide time-of-day
-	--[[
-	self.HideTimeOfDayCheckbutton = CreateFrame("Checkbutton", "MappyHideTimeOfDayCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.HideTimeOfDayCheckbutton = CreateFrame("CheckButton", "MappyHideTimeOfDayCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideTimeOfDayCheckbutton:SetPoint("TOPLEFT", self.Title, "BOTTOMLEFT", 0, -15)
 	self.HideTimeOfDayCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeOfDay(self:GetChecked()) end)
 	MappyHideTimeOfDayCheckbuttonText:SetText("Hide calendar button")
-	
-	-- Hide zoom in/out
-
-	self.HideZoomCheckbutton = CreateFrame("Checkbutton", "MappyHideZoomCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.HideZoomCheckbutton:SetPoint("TOPLEFT", self.HideTimeOfDayCheckbutton, "TOPLEFT", 0, -25)
-	self.HideZoomCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideZoom(self:GetChecked()) end)
-	MappyHideZoomCheckbuttonText:SetText("Hide zoom buttons")
-
-	-- Hide world map button
-
-	self.HideWorldMapCheckbutton = CreateFrame("Checkbutton", "MappyHideWorldMapCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.HideWorldMapCheckbutton:SetPoint("TOPLEFT", self.HideZoomCheckbutton, "TOPLEFT", 0, -25)
-	self.HideWorldMapCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideWorldMap(self:GetChecked()) end)
-	MappyHideWorldMapCheckbuttonText:SetText("Hide world map button")
 
 	-- Hide Tracking Icon
 	
-	self.HideMiniMapTrackingCheckbutton = CreateFrame("Checkbutton", "MappyHideMiniMapTrackingCheckbutton", self, "OptionsCheckButtonTemplate")
-	self.HideMiniMapTrackingCheckbutton:SetPoint("TOPLEFT", self.HideWorldMapCheckbutton, "TOPLEFT", 0, -25)
+	self.HideMiniMapTrackingCheckbutton = CreateFrame("CheckButton", "MappyHideMiniMapTrackingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideMiniMapTrackingCheckbutton:SetPoint("TOPLEFT", self.HideTimeOfDayCheckbutton, "TOPLEFT", 0, -25)
 	self.HideMiniMapTrackingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTracking(self:GetChecked()) end)
 	MappyHideMiniMapTrackingCheckbuttonText:SetText("Hide Tracking icon")
 	
 	-- Hide Time Manager Clock
 	
-	self.HideTimeManagerClockCheckbutton = CreateFrame("Checkbutton", "MappyHideTimeManagerClockCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.HideTimeManagerClockCheckbutton = CreateFrame("CheckButton", "MappyHideTimeManagerClockCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideTimeManagerClockCheckbutton:SetPoint("TOPLEFT", self.HideMiniMapTrackingCheckbutton, "TOPLEFT", 0, -25)
 	self.HideTimeManagerClockCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeManagerClock(self:GetChecked()) end)
 	MappyHideTimeManagerClockCheckbuttonText:SetText("Hide clock")
 	
 	-- Addon button stacking
 
-	self.AutoStackCheckbutton = CreateFrame("Checkbutton", "MappyAutoStackCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.AutoStackCheckbutton = CreateFrame("CheckButton", "MappyAutoStackCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.AutoStackCheckbutton:SetPoint("TOPLEFT", self.HideTimeManagerClockCheckbutton, "TOPLEFT", 0, -40)
 	self.AutoStackCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoArrangeButtons(self:GetChecked()) end)
 	MappyAutoStackCheckbuttonText:SetText("Auto-arrange addon buttons")
 	
 	-- Starting corner
 	
-	self.TopLeftCheckbutton = CreateFrame("Checkbutton", "MappyTopLeftCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.TopLeftCheckbutton = CreateFrame("CheckButton", "MappyTopLeftCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.TopLeftCheckbutton:SetPoint("TOPLEFT", self.AutoStackCheckbutton, "TOPLEFT", 30, -25)
 	self.TopLeftCheckbutton:SetScript("OnClick", function (button) Mappy:corner("TOPLEFT") self:OnShow() end)
 	MappyTopLeftCheckbuttonText:SetText("Top-left")
 	
-	self.TopRightCheckbutton = CreateFrame("Checkbutton", "MappyTopRightCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.TopRightCheckbutton = CreateFrame("CheckButton", "MappyTopRightCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.TopRightCheckbutton:SetPoint("TOPLEFT", self.TopLeftCheckbutton, "TOPLEFT", 120, 0)
 	self.TopRightCheckbutton:SetScript("OnClick", function (button) Mappy:corner("TOPRIGHT") self:OnShow() end)
 	MappyTopRightCheckbuttonText:SetText("Top-right")
 	
-	self.BottomLeftCheckbutton = CreateFrame("Checkbutton", "MappyBottomLeftCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.BottomLeftCheckbutton = CreateFrame("CheckButton", "MappyBottomLeftCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.BottomLeftCheckbutton:SetPoint("TOPLEFT", self.TopLeftCheckbutton, "TOPLEFT", 0, -25)
 	self.BottomLeftCheckbutton:SetScript("OnClick", function (button) Mappy:corner("BOTTOMLEFT") self:OnShow() end)
 	MappyBottomLeftCheckbuttonText:SetText("Bottom-left")
 	
-	self.BottomRightCheckbutton = CreateFrame("Checkbutton", "MappyBottomRightCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.BottomRightCheckbutton = CreateFrame("CheckButton", "MappyBottomRightCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.BottomRightCheckbutton:SetPoint("TOPLEFT", self.TopRightCheckbutton, "TOPLEFT", 0, -25)
 	self.BottomRightCheckbutton:SetScript("OnClick", function (button) Mappy:corner("BOTTOMRIGHT") self:OnShow() end)
 	MappyBottomRightCheckbuttonText:SetText("Bottom-right")
 	
 	-- Direction
 
-	self.CCWCheckbutton = CreateFrame("Checkbutton", "MappyCCWCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.CCWCheckbutton = CreateFrame("CheckButton", "MappyCCWCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.CCWCheckbutton:SetPoint("TOPLEFT", self.BottomLeftCheckbutton, "TOPLEFT", 0, -25)
 	self.CCWCheckbutton:SetScript("OnClick", function (self) Mappy:SetCounterClockwise(self:GetChecked()) end)
 	MappyCCWCheckbuttonText:SetText("Counter-clockwise")
 	
 	-- Stacking parent
 
-	self.StackToScreenCheckbutton = CreateFrame("Checkbutton", "MappyStackToScreenCheckbutton", self, "OptionsCheckButtonTemplate")
+	self.StackToScreenCheckbutton = CreateFrame("CheckButton", "MappyStackToScreenCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.StackToScreenCheckbutton:SetPoint("TOPLEFT", self.CCWCheckbutton, "TOPLEFT", 0, -25)
 	self.StackToScreenCheckbutton:SetScript("OnClick", function (self) Mappy:SetStackToScreen(self:GetChecked()) end)
 	MappyStackToScreenCheckbuttonText:SetText("Stack around screen")
-    ]]--
 	
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
@@ -2784,11 +2346,7 @@ end
 
 function Mappy._ButtonOptionsPanel:OnShow()
 	Mappy.DisableUpdates = true
-	-- Shushuda
-    --[[
 	self.HideTimeOfDayCheckbutton:SetChecked(Mappy.CurrentProfile.HideTimeOfDay)
-	self.HideZoomCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoom)
-	self.HideWorldMapCheckbutton:SetChecked(Mappy.CurrentProfile.HideWorldMap)
 	self.HideMiniMapTrackingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTracking)
 	self.HideTimeManagerClockCheckbutton:SetChecked(Mappy.CurrentProfile.HideTimeManagerClock)
 	self.AutoStackCheckbutton:SetChecked(Mappy.CurrentProfile.AutoArrangeButtons)
@@ -2798,7 +2356,6 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	self.BottomRightCheckbutton:SetChecked(Mappy.CurrentProfile.StartingCorner == "BOTTOMRIGHT")
 	self.CCWCheckbutton:SetChecked(Mappy.CurrentProfile.CCW)
 	self.StackToScreenCheckbutton:SetChecked(Mappy.CurrentProfile.StackToScreen)
-    ]]--
 	
 	Mappy.DisableUpdates = false
 end
