@@ -412,13 +412,6 @@ function Mappy:ConfigureMinimapOptions()
 		GameTimeFrame:Show()
 	end
 
-	if self.CurrentProfile.HideZoom then
-		Minimap.ZoomIn:Hide()
-		Minimap.ZoomOut:Hide()
-	else
-		Minimap.ZoomIn:Show()
-		Minimap.ZoomOut:Show()
-	end
 	if self.CurrentProfile.HideZoneName then
         MinimapCluster.ZoneTextButton:Hide()
 	else
