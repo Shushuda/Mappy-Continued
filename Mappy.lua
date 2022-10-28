@@ -2142,16 +2142,36 @@ function Mappy._OptionsPanel:Construct(pParent)
 	
 	self.name = "Mappy Continued"
 	InterfaceOptions_AddCategory(self)
-	
+
+    --------------------------------
+    -- title header
+    --------------------------------
 	self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 15, -15)
+	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 20, -20)
 	self.Title:SetText("Mappy Continued")
-	
+
+    self.Desc = self:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
+    self.Desc:SetPoint("TOPLEFT", self.Title, 1, -30)
+    self.Desc:SetText("Main settings. Please report bugs on GitHub <3")
+
+    --------------------------------
+    -- size alpha header
+    --------------------------------
+    self.SizeLine = self:CreateLine()
+    self.SizeLine:SetStartPoint("TOPLEFT", self, 10, -100)
+    self.SizeLine:SetEndPoint("TOPRIGHT", self, -20, -100)
+    self.SizeLine:SetColorTexture(1,1,1,0.25)
+    self.SizeLine:SetThickness(2)
+
+    self.SizeTitle = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.SizeTitle:SetPoint("TOPLEFT", self.SizeLine, 5, 13)
+    self.SizeTitle:SetText("Size and alpha settings")
+
 	-- Size slider
 	
 	self.SizeSlider = CreateFrame("Slider", "MappySizeSlider", self, "OptionsSliderTemplate")
 	self.SizeSlider:SetWidth(380)
-	self.SizeSlider:SetPoint("TOPLEFT", self.Title, "BOTTOMLEFT", 0, -15)
+	self.SizeSlider:SetPoint("TOPLEFT", self.SizeLine, "BOTTOMLEFT", 20, -30)
 	self.SizeSlider:SetMinMaxValues(80, 1000)
 	self.SizeSlider:SetScript("OnValueChanged", function (self) Mappy:SetMinimapSize(self:GetValue()) end)
 	MappySizeSliderText:SetText("Size")
@@ -2162,7 +2182,7 @@ function Mappy._OptionsPanel:Construct(pParent)
 	
 	self.AlphaSlider = CreateFrame("Slider", "MappyAlphaSlider", self, "OptionsSliderTemplate")
 	self.AlphaSlider:SetWidth(180)
-	self.AlphaSlider:SetPoint("TOPLEFT", self.SizeSlider, "BOTTOMLEFT", 0, -30)
+	self.AlphaSlider:SetPoint("TOPLEFT", self.SizeSlider, "BOTTOMLEFT", 0, -35)
 	self.AlphaSlider:SetScript("OnValueChanged", function (self) Mappy:SetMinimapAlpha(self:GetValue()) end)
 	MappyAlphaSliderText:SetText("Alpha")
 	self.AlphaSlider:SetMinMaxValues(0, 1)
@@ -2184,11 +2204,24 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.MovingAlphaSlider:SetScript("OnValueChanged", function (self) Mappy:SetMinimapMovingAlpha(self:GetValue()) end)
 	MappyMovingAlphaSliderText:SetText("Movement Alpha")
 	self.MovingAlphaSlider:SetMinMaxValues(0, 1)
-	
+
+    --------------------------------
+    -- main settings header
+    --------------------------------
+    self.SettingsLine = self:CreateLine()
+    self.SettingsLine:SetStartPoint("TOPLEFT", self, 10, -250)
+    self.SettingsLine:SetEndPoint("TOPRIGHT", self, -20, -250)
+    self.SettingsLine:SetColorTexture(1,1,1,0.25)
+    self.SettingsLine:SetThickness(2)
+
+    self.SettingsHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.SettingsHeader:SetPoint("TOPLEFT", self.SettingsLine, 5, 13)
+    self.SettingsHeader:SetText("Main settings")
+
 	-- Hide coordinates
 
 	self.HideCoordinatesCheckbutton = CreateFrame("CheckButton", "MappyHideCoordinatesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.HideCoordinatesCheckbutton:SetPoint("TOPLEFT", self.AlphaSlider, "TOPLEFT", -5, -45)
+	self.HideCoordinatesCheckbutton:SetPoint("TOPLEFT", self.SettingsLine, "TOPLEFT", 10, -15)
 	self.HideCoordinatesCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideCoordinates(self:GetChecked()) end)
 	MappyHideCoordinatesCheckbuttonText:SetText("Hide coordinates")
 
@@ -2267,14 +2300,34 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.parent = "Mappy Continued"
 	
 	InterfaceOptions_AddCategory(self)
-	
-	self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 15, -15)
-	self.Title:SetText("Buttons")
-	
+
+    --------------------------------
+    -- title header
+    --------------------------------
+    self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 20, -20)
+    self.Title:SetText("Buttons")
+
+    self.Desc = self:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
+    self.Desc:SetPoint("TOPLEFT", self.Title, 1, -30)
+    self.Desc:SetText("Minimap button settings.")
+
+    --------------------------------
+    -- hide header
+    --------------------------------
+    self.HideLine = self:CreateLine()
+    self.HideLine:SetStartPoint("TOPLEFT", self, 10, -100)
+    self.HideLine:SetEndPoint("TOPRIGHT", self, -20, -100)
+    self.HideLine:SetColorTexture(1,1,1,0.25)
+    self.HideLine:SetThickness(2)
+
+    self.HideTitle = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.HideTitle:SetPoint("TOPLEFT", self.HideLine, 5, 13)
+    self.HideTitle:SetText("Hide buttons")
+
 	-- Hide time-of-day
 	self.HideTimeOfDayCheckbutton = CreateFrame("CheckButton", "MappyHideTimeOfDayCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.HideTimeOfDayCheckbutton:SetPoint("TOPLEFT", self.Title, "BOTTOMLEFT", 0, -15)
+	self.HideTimeOfDayCheckbutton:SetPoint("TOPLEFT", self.HideLine, "BOTTOMLEFT", 10, -15)
 	self.HideTimeOfDayCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeOfDay(self:GetChecked()) end)
 	MappyHideTimeOfDayCheckbuttonText:SetText("Hide calendar button")
 
@@ -2291,11 +2344,24 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.HideTimeManagerClockCheckbutton:SetPoint("TOPLEFT", self.HideMiniMapTrackingCheckbutton, "TOPLEFT", 0, -25)
 	self.HideTimeManagerClockCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeManagerClock(self:GetChecked()) end)
 	MappyHideTimeManagerClockCheckbuttonText:SetText("Hide clock")
-	
+
+    --------------------------------
+    -- stacking header
+    --------------------------------
+    self.StackingLine = self:CreateLine()
+    self.StackingLine:SetStartPoint("TOPLEFT", self, 10, -250)
+    self.StackingLine:SetEndPoint("TOPRIGHT", self, -20, -250)
+    self.StackingLine:SetColorTexture(1,1,1,0.25)
+    self.StackingLine:SetThickness(2)
+
+    self.StackingHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.StackingHeader:SetPoint("TOPLEFT", self.StackingLine, 5, 13)
+    self.StackingHeader:SetText("Arrange buttons")
+
 	-- Addon button stacking
 
 	self.AutoStackCheckbutton = CreateFrame("CheckButton", "MappyAutoStackCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.AutoStackCheckbutton:SetPoint("TOPLEFT", self.HideTimeManagerClockCheckbutton, "TOPLEFT", 0, -40)
+	self.AutoStackCheckbutton:SetPoint("TOPLEFT", self.StackingLine, "TOPLEFT", 10, -15)
 	self.AutoStackCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoArrangeButtons(self:GetChecked()) end)
 	MappyAutoStackCheckbuttonText:SetText("Auto-arrange addon buttons")
 	
@@ -2373,11 +2439,31 @@ function Mappy._ProfilesPanel:Construct(pParent)
 	self.parent = "Mappy Continued"
 	
 	InterfaceOptions_AddCategory(self)
-	
-	self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 15, -15)
-	self.Title:SetText("Profiles")
-	
+
+    --------------------------------
+    -- title header
+    --------------------------------
+    self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 20, -20)
+    self.Title:SetText("Profiles")
+
+    self.Desc = self:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
+    self.Desc:SetPoint("TOPLEFT", self.Title, 1, -30)
+    self.Desc:SetText("Profile selection for different conditions.")
+
+    --------------------------------
+    -- profile header
+    --------------------------------
+    self.ProfileLine = self:CreateLine()
+    self.ProfileLine:SetStartPoint("TOPLEFT", self, 10, -100)
+    self.ProfileLine:SetEndPoint("TOPRIGHT", self, -20, -100)
+    self.ProfileLine:SetColorTexture(1,1,1,0.25)
+    self.ProfileLine:SetThickness(2)
+
+    self.ProfileTitle = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.ProfileTitle:SetPoint("TOPLEFT", self.ProfileLine, 5, 13)
+    self.ProfileTitle:SetText("Change profiles")
+
 	--
 	
 	self.DidCreateMenus = false
@@ -2395,22 +2481,22 @@ function Mappy._ProfilesPanel:OnShow()
 		self.DungeonMenu = Mappy:New(Mappy.UIElementsLib._TitledDropDownMenuButton, self, function (...) self:ProfileMenuFunc(self.DungeonMenu, "DungeonProfile", ...) end)
 		self.DungeonMenu:SetTitle("Dungeon")
 		self.DungeonMenu:SetWidth(150)
-		self.DungeonMenu:SetPoint("TOPLEFT", self.Title, "BOTTOMLEFT", 80, -15)
+		self.DungeonMenu:SetPoint("TOPLEFT", self.ProfileLine, "BOTTOMLEFT", 90, -20)
 
 		self.BattlegroundMenu = Mappy:New(Mappy.UIElementsLib._TitledDropDownMenuButton, self, function (...) self:ProfileMenuFunc(self.BattlegroundMenu, "BattlegroundProfile", ...) end)
 		self.BattlegroundMenu:SetTitle("Battleground")
 		self.BattlegroundMenu:SetWidth(150)
-		self.BattlegroundMenu:SetPoint("TOPLEFT", self.DungeonMenu, "BOTTOMLEFT", 0, -15)
+		self.BattlegroundMenu:SetPoint("TOPLEFT", self.DungeonMenu, "BOTTOMLEFT", 0, -20)
 
 		self.MountedMenu = Mappy:New(Mappy.UIElementsLib._TitledDropDownMenuButton, self, function (...) self:ProfileMenuFunc(self.MountedMenu, "MountedProfile", ...) end)
 		self.MountedMenu:SetTitle("Mounted")
 		self.MountedMenu:SetWidth(150)
-		self.MountedMenu:SetPoint("TOPLEFT", self.BattlegroundMenu, "BOTTOMLEFT", 0, -15)
+		self.MountedMenu:SetPoint("TOPLEFT", self.BattlegroundMenu, "BOTTOMLEFT", 0, -20)
 
 		self.DefaultMenu = Mappy:New(Mappy.UIElementsLib._TitledDropDownMenuButton, self, function (...) self:ProfileMenuFunc(self.DefaultMenu, "DefaultProfile", ...) end)
 		self.DefaultMenu:SetTitle("All others")
 		self.DefaultMenu:SetWidth(150)
-		self.DefaultMenu:SetPoint("TOPLEFT", self.MountedMenu, "BOTTOMLEFT", 0, -15)
+		self.DefaultMenu:SetPoint("TOPLEFT", self.MountedMenu, "BOTTOMLEFT", 0, -20)
 	end
 
 	self.MountedMenu:SetCurrentValueText(Mappy:GetProfileName(gMappy_Settings.MountedProfile))
