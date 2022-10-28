@@ -4,7 +4,7 @@
 ## Author: John Stephen, LynchburgJack, Shushuda
 ## Version: 4.0.0
 ## SavedVariables: gMappy_Settings
-## OptionalDeps: QuestHelper, Gatherer, GatherMate, GatherMate2
+## OptionalDeps: Gatherer, GatherMate, GatherMate2
 
 Libraries/MC2AddonLib/MC2AddonLib.lua
 Libraries/MC2DebugLib/MC2DebugLib.lua
