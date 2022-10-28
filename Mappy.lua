@@ -2140,12 +2140,12 @@ end
 function Mappy._OptionsPanel:Construct(pParent)
 	self:Hide()
 	
-	self.name = "Mappy"
+	self.name = "Mappy Continued"
 	InterfaceOptions_AddCategory(self)
 	
 	self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 15, -15)
-	self.Title:SetText("Mappy Main Settings")
+	self.Title:SetText("Mappy Continued")
 	
 	-- Size slider
 	
@@ -2264,13 +2264,13 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self:Hide()
 	
 	self.name = "Buttons"
-	self.parent = "Mappy"
+	self.parent = "Mappy Continued"
 	
 	InterfaceOptions_AddCategory(self)
 	
 	self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 15, -15)
-	self.Title:SetText("Mappy Buttons")
+	self.Title:SetText("Buttons")
 	
 	-- Hide time-of-day
 	self.HideTimeOfDayCheckbutton = CreateFrame("CheckButton", "MappyHideTimeOfDayCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
@@ -2370,13 +2370,13 @@ function Mappy._ProfilesPanel:Construct(pParent)
 	self:Hide()
 	
 	self.name = "Profiles"
-	self.parent = "Mappy"
+	self.parent = "Mappy Continued"
 	
 	InterfaceOptions_AddCategory(self)
 	
 	self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 15, -15)
-	self.Title:SetText("Mappy Profiles")
+	self.Title:SetText("Profiles")
 	
 	--
 	

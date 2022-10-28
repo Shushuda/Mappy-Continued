@@ -1,6 +1,6 @@
 ## Interface: 100000
-## Notes: Minimap and world map enhancements
-## Title: Mappy
+## Notes: Minimap enhancements
+## Title: Mappy Continued
 ## Author: John Stephen, LynchburgJack, Shushuda
 ## Version: 4.0.0
 ## SavedVariables: gMappy_Settings
