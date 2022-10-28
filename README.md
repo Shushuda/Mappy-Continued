@@ -13,6 +13,7 @@ What's important is that the addon is now working with **Dragonflight**!
 Mappy-Continued is a minimap addon focused on changing the minimap shape into a sleek square.
 
 Other features include:
+* Resizing of the minimap
 * Automatic stacking of minimap buttons along the minimap OR screen
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
 * Zooming in and out with the mouse wheel
