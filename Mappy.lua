@@ -167,6 +167,12 @@ Mappy.ObjectIconsHighlightSmallPath = "Interface\\Addons\\Mappy\\Textures\\Objec
 Mappy.ObjectIconsNormalLargePath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_Large"
 Mappy.ObjectIconsHighlightLargePath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On_Large"
 
+Mappy.ObjectIconsNormalOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_Old"
+Mappy.ObjectIconsHighlightOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On_Old"
+
+Mappy.ObjectIconsNormalLargeOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_Large_Old"
+Mappy.ObjectIconsHighlightLargeOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On_Large_Old"
+
 Mappy.ObjectIconsNormalPath = ""
 Mappy.ObjectIconsHighlightPath = ""
 
@@ -247,7 +253,7 @@ function Mappy:InitializeSettings()
 				HideTracking = false,
 				HideTimeManagerClock = false,
 				FlashGatherNodes = false,
-				UseNormalIcons = false, -- use large icons
+                NormalGatherNodes = true, -- use large icons
 			},
 			gather =
 			{
@@ -271,7 +277,7 @@ function Mappy:InitializeSettings()
 				HideTracking = false,
 				HideTimeManagerClock = false,
 				FlashGatherNodes = true,
-				UseNormalIcons = false, -- use large icons
+                NormalGatherNodes = false, -- use large icons
 				AttachmentPosition = {
 					Point = "TOPRIGHT",
 					RelativeTo = UIParent,
@@ -447,11 +453,21 @@ function Mappy:ConfigureMinimapOptions()
 	end
 	
 	if self.CurrentProfile.NormalGatherNodes then
-		self.ObjectIconsNormalPath = self.ObjectIconsNormalSmallPath
-		self.ObjectIconsHighlightPath = self.ObjectIconsHighlightSmallPath
+        if self.CurrentProfile.OldGatherNodes then
+            self.ObjectIconsNormalPath = self.ObjectIconsNormalOldPath
+            self.ObjectIconsHighlightPath = self.ObjectIconsHighlightOldPath
+        else
+    		self.ObjectIconsNormalPath = self.ObjectIconsNormalSmallPath
+	    	self.ObjectIconsHighlightPath = self.ObjectIconsHighlightSmallPath
+        end
 	else
-		self.ObjectIconsNormalPath = self.ObjectIconsNormalLargePath
-		self.ObjectIconsHighlightPath = self.ObjectIconsHighlightLargePath
+        if self.CurrentProfile.OldGatherNodes then
+            self.ObjectIconsNormalPath = self.ObjectIconsNormalLargeOldPath
+            self.ObjectIconsHighlightPath = self.ObjectIconsHighlightLargeOldPath
+        else
+    		self.ObjectIconsNormalPath = self.ObjectIconsNormalLargePath
+	    	self.ObjectIconsHighlightPath = self.ObjectIconsHighlightLargePath
+        end
 	end
 	
 	if Mappy.enableBlips then
@@ -1431,6 +1447,11 @@ function Mappy:SetLargeGatherNodes(pLarge)
 	self:ConfigureMinimapOptions()
 end
 
+function Mappy:SetOldGatherNodes(pOld)
+    self.CurrentProfile.OldGatherNodes = pOld
+    self:ConfigureMinimapOptions()
+end
+
 function Mappy:SetHideTracking(pHide)
 	if pHide then
 		self.CurrentProfile.HideTracking = true
@@ -2253,10 +2274,17 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.LargeGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetLargeGatherNodes(self:GetChecked()) end)
 	MappyLargeGatherNodesCheckbuttonText:SetText("Large gathering nodes")
 
+    -- Old gathering nodes
+
+    self.OldGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyOldGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.OldGatherNodesCheckbutton:SetPoint("TOPLEFT", self.LargeGatherNodesCheckbutton, "TOPLEFT", 0, -25)
+    self.OldGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetOldGatherNodes(self:GetChecked()) end)
+    MappyOldGatherNodesCheckbuttonText:SetText("Classic-style gathering nodes")
+
 	-- Ghost
 	
 	self.GhostCheckbutton = CreateFrame("CheckButton", "MappyGhostCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.GhostCheckbutton:SetPoint("TOPLEFT", self.LargeGatherNodesCheckbutton, "TOPLEFT", 0, -40)
+	self.GhostCheckbutton:SetPoint("TOPLEFT", self.OldGatherNodesCheckbutton, "TOPLEFT", 0, -40)
 	self.GhostCheckbutton:SetScript("OnClick", function (self) Mappy:SetGhost(self:GetChecked()) end)
 	MappyGhostCheckbuttonText:SetText("Pass clicks through")
 
@@ -2277,6 +2305,7 @@ function Mappy._OptionsPanel:OnShow()
 	self.HideBorderCheckbutton:SetChecked(Mappy.CurrentProfile.HideBorder)
 	self.FlashGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.FlashGatherNodes)
 	self.LargeGatherNodesCheckbutton:SetChecked(not Mappy.CurrentProfile.NormalGatherNodes)
+    self.OldGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.OldGatherNodes)
 	self.GhostCheckbutton:SetChecked(Mappy.CurrentProfile.GhostMinimap)
 
 	Mappy.DisableUpdates = false
