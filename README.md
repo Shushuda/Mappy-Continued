@@ -21,6 +21,7 @@ Other features include:
 * Profiles (including being able to set a profile for mounting, dungeon etc)
 * Gathering overlay support for Gatherer and GatherMate
 * Bigger and/or blinking gathering nodes
+* Classic-style dot for gathering nodes
 * Player coordinates
 
 ## Authors
