@@ -728,7 +728,6 @@ end
 function Mappy:help()
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy help"..NORMAL_FONT_COLOR_CODE..": Shows this list")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy default"..NORMAL_FONT_COLOR_CODE..": Loads the default profile")
-	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy normal"..NORMAL_FONT_COLOR_CODE..": Alias for /mappy default")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy save settingsname"..NORMAL_FONT_COLOR_CODE..": Saves the settings under the name settingsname")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy load settingsname"..NORMAL_FONT_COLOR_CODE..": Loads the settings")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy settingsname"..NORMAL_FONT_COLOR_CODE..": Shorthand version of /mappy load")
@@ -736,6 +735,7 @@ function Mappy:help()
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy unghost"..NORMAL_FONT_COLOR_CODE..": Mouse clicks work as usual")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy corner TOPLEFT|TOPRIGHT|BOTTOMLEFT|BOTTOMRIGHT"..NORMAL_FONT_COLOR_CODE..": Sets the starting corner for button stacking")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy reset"..NORMAL_FONT_COLOR_CODE..": Resets all settings and profiles")
+    self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy reload"..NORMAL_FONT_COLOR_CODE..": Reload Mappy if something doesn't look right")
 end
 
 function Mappy:ghost(pParameter)
@@ -754,11 +754,13 @@ function Mappy:load(pParameter)
 	self:LoadProfileName(pParameter)
 end
 
-function Mappy:normal(pParameter)
-	self:LoadDefaultProfile()
+function Mappy:reload(pParameter)
+    self:LoadProfile(self.CurrentProfile)
 end
 
-Mappy.default = Mappy.normal -- Alias the 'normal' command as 'default'
+function Mappy:default(pParameter)
+	self:LoadDefaultProfile()
+end
 
 function Mappy:corner(pParameter)
 	local vCorner = pParameter:upper()
