@@ -29,6 +29,7 @@ Mappy.BlizzardMinimalistButtons = {
     [GameTimeFrame] = true,
     [MinimapCluster.MailFrame] = true,
     [MinimapCluster.Tracking] = true,
+    [MinimapCluster.InstanceDifficulty] = true,
 }
 
 Mappy.OtherAddonButtonNames = {
@@ -357,11 +358,6 @@ function Mappy:FindMinimapButtons()
             vButton = _G[vButtonName]
         else
             vButton = vButtonName
-
-            -- handle special case (avoid showing empty box)
-            if vButton == MinimapCluster.InstanceDifficulty and not MinimapCluster.InstanceDifficulty.showDifficultyFrame then
-                vButton = nil
-            end
         end
 
         if vButton then
@@ -1046,6 +1042,9 @@ function Mappy:ConfigureMinimap()
     if MinimapCluster.Tracking then
          MinimapCluster.Tracking:ClearAllPoints()
     end
+    if MinimapCluster.InstanceDifficulty then
+        MinimapCluster.InstanceDifficulty:ClearAllPoints()
+    end
 
 	-- Stack all the known buttons
 	
@@ -1054,6 +1053,31 @@ function Mappy:ConfigureMinimap()
 	local	vButton
 	
 	for _, vNextButton in pairs(self.MinimapButtons) do
+
+        -- handle special case (avoid showing empty box)
+        if vButton == MinimapCluster.InstanceDifficulty then
+            local _, instanceType, difficulty, _, _, playerD_, _, _, _ = GetInstanceInfo();
+            local _, _, isHeroic, isChallengeMode, displayHeroic, displayMythic = GetDifficultyInfo(difficulty);
+
+            if not ( isChallengeMode or instanceType == "raid"
+            or isHeroic or displayMythic or displayHeroic ) then
+                vButton = nil
+            end
+
+            --[[
+            -- I'm leaving this debug in because I dont trust this code at all
+            -- needs more testing, especially guild, lfr, sitting outside lfr
+
+            if ( isChallengeMode ) then
+                print('its a challenge mode')
+            elseif ( instanceType == "raid" or isHeroic or displayMythic or displayHeroic ) then
+                print('its an instance')
+            else
+                print('its nothing')
+            end
+            ]]--
+        end
+
 		if vNextButton.Mappy_SetPoint then
 			if vButton and vButton:IsVisible() then
 				self:StackButton(vButton, vNextButton)
@@ -1076,9 +1100,6 @@ function Mappy:ConfigureMinimap()
 		else
 			SetCVar("rotateMinimap", "0")
 		end
-		
-        -- Shushuda
-		--Minimap_UpdateRotationSetting()
 	end
 
 	-- Update the cluster position hack
@@ -1339,12 +1360,16 @@ end
 
 function Mappy:UpdateCoords()
     local map = C_Map.GetBestMapForUnit("player")
-    local position = C_Map.GetPlayerMapPosition(map, "player")
-    vX, vY = position:GetXY()
-    if not vX or not vY or (vX == 0 and vY == 0) then
-        self.CoordString:SetText("")
+    if map then
+        local position = C_Map.GetPlayerMapPosition(map, "player")
+        if position then
+            vX, vY = position:GetXY()
+            self.CoordString:SetText(string.format("%.1f, %.1f", vX * 100, vY * 100))
+        else
+            self.CoordString:SetText("")
+        end
     else
-        self.CoordString:SetText(string.format("%.1f, %.1f", vX * 100, vY * 100))
+        self.CoordString:SetText("")
     end
 end
 
