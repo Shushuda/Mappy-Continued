@@ -243,7 +243,7 @@ function Mappy:InitializeSettings()
 				RelativePoint = "TOPRIGHT",
 				OffsetX = -32,
 				OffsetY = -32,
-				
+
 				HideTimeOfDay = false,
 				HideZoneName = false,
 				GhostMinimap = false,
@@ -702,7 +702,8 @@ function Mappy:ExecuteCommand(pCommand)
 	local	vStartIndex, vEndIndex, vCommand, vParameter = string.find(pCommand, "(%w+) ?(.*)")
 	
 	if not vCommand then
-		self:help()
+        InterfaceOptionsFrame_OpenToCategory(self.OptionsPanel)
+        InterfaceOptionsFrame_OpenToCategory(self.OptionsPanel)
 		return
 	end
 	
