@@ -835,8 +835,8 @@ function Mappy:StackButton(pButton, pNextButton)
         MiniOffsetV = -16
     elseif tableContains(self.BlizzardMinimalistButtons, self.StackingInfo.PreviousButton) then
         -- Correct offset if previous button was mini, but current button is not
-        MiniOffsetH = MiniOffsetH - 2
-        MiniOffsetV = MiniOffsetV - 2
+        MiniOffsetH = MiniOffsetH - 5
+        MiniOffsetV = MiniOffsetV - 5
     end
 
 	if not self.StackingInfo.PreviousButton then
