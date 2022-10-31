@@ -537,6 +537,9 @@ function Mappy:InitializeDragging()
 
     Minimap:RegisterForDrag("LeftButton")
 
+    Minimap:SetScript("OnDragStart", function() Mappy:StartMovingMinimap() end)
+    Minimap:SetScript("OnDragStop", function() Mappy:StopMovingMinimap() end)
+
     MinimapCluster.Mappy_SetPoint = MinimapCluster.SetPoint
     MinimapCluster.Mappy_ClearAllPoints = MinimapCluster.ClearAllPoints
     MinimapCluster.SetPoint = function () end
@@ -732,6 +735,8 @@ function Mappy:help()
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy unghost"..NORMAL_FONT_COLOR_CODE..": Mouse clicks work as usual")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy corner TOPLEFT|TOPRIGHT|BOTTOMLEFT|BOTTOMRIGHT"..NORMAL_FONT_COLOR_CODE..": Sets the starting corner for button stacking")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy reset"..NORMAL_FONT_COLOR_CODE..": Resets all settings and profiles")
+    self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy unlock"..NORMAL_FONT_COLOR_CODE..": Unlocks the minimap for dragging")
+    self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy lock"..NORMAL_FONT_COLOR_CODE..": Locks the minimap, preventing its movement")
     self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy reload"..NORMAL_FONT_COLOR_CODE..": Reload Mappy if something doesn't look right")
 end
 
@@ -741,6 +746,16 @@ end
 
 function Mappy:unghost(pParameter)
 	self:UnghostMinimap()
+end
+
+function Mappy:unlock(pParameter)
+    self.CurrentProfile.LockPosition = nil
+    --self:LoadProfile(self.CurrentProfile)
+end
+
+function Mappy:lock(pParameter)
+    self.CurrentProfile.LockPosition = true
+    --self:LoadProfile(self.CurrentProfile)
 end
 
 function Mappy:save(pParameter)
@@ -1529,6 +1544,14 @@ function Mappy:SetHideZoneName(pHide)
 	end
 end
 
+function Mappy:SetLockPosition(pLock)
+	if pLock then
+		self.CurrentProfile.LockPosition = true
+	else
+		self.CurrentProfile.LockPosition = nil
+	end
+end
+
 function Mappy:SetHideBorder(pHide)
 	self.CurrentProfile.HideBorder = pHide and true or nil
 	self:AdjustBackgroundStyle()
@@ -1686,6 +1709,42 @@ function Mappy:MinimapMouseWheel(pWheelDirection)
 			Minimap.ZoomOut:Disable()
 		end
 	end
+end
+
+function Mappy:StartMovingMinimap()
+	if self.CurrentProfile.LockPosition then
+		return
+	end
+
+	-- Enable moving
+
+	MinimapCluster.SetPoint = MinimapCluster.Mappy_SetPoint
+	MinimapCluster.ClearAllPoints = MinimapCluster.Mappy_ClearAllPoints
+
+	-- Start moving
+
+	MinimapCluster:StartMoving()
+end
+
+function Mappy:StopMovingMinimap()
+	if self.CurrentProfile.LockPosition then
+		return
+	end
+
+	-- Stop moving
+
+	MinimapCluster:StopMovingOrSizing()
+
+	-- Disable moving
+
+	MinimapCluster.SetPoint = function () end
+	MinimapCluster.ClearAllPoints = function () end
+
+	-- Save the new position
+
+	MinimapCluster:SetUserPlaced(true) -- Must leave this true or UIParent will screw up laying out windows
+
+	self:PositionChanged()
 end
 
 function Mappy:StartGatherFlash()
@@ -2317,6 +2376,13 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.GhostCheckbutton:SetScript("OnClick", function (self) Mappy:SetGhost(self:GetChecked()) end)
 	MappyGhostCheckbuttonText:SetText("Pass clicks through")
 
+    -- Lock position
+
+	self.LockPositionCheckbutton = CreateFrame("CheckButton", "MappyLockPositionCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.LockPositionCheckbutton:SetPoint("TOPLEFT", self.GhostCheckbutton, "TOPLEFT", 0, -40)
+	self.LockPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetLockPosition(self:GetChecked()) end)
+	MappyLockPositionCheckbuttonText:SetText("Lock position")
+
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -2335,6 +2401,7 @@ function Mappy._OptionsPanel:OnShow()
 	self.FlashGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.FlashGatherNodes)
 	self.LargeGatherNodesCheckbutton:SetChecked(not Mappy.CurrentProfile.NormalGatherNodes)
     self.OldGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.OldGatherNodes)
+    self.LockPositionCheckbutton:SetChecked(Mappy.CurrentProfile.LockPosition)
 	self.GhostCheckbutton:SetChecked(Mappy.CurrentProfile.GhostMinimap)
 
 	Mappy.DisableUpdates = false
