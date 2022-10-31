@@ -436,12 +436,6 @@ function Mappy:ConfigureMinimapOptions()
 		end
 	end
 	
-	if self.CurrentProfile.FlashGatherNodes then
-		self:StartGatherFlash()
-	else
-		self:StopGatherFlash()
-	end
-
 	if self.CurrentProfile.GhostMinimap then
 		self:GhostMinimap()
 	else
@@ -472,6 +466,12 @@ function Mappy:ConfigureMinimapOptions()
 		else
 			Minimap:SetBlipTexture(self.ObjectIconsNormalPath)
 		end
+	end
+
+	if self.CurrentProfile.FlashGatherNodes then
+		self:StartGatherFlash()
+	else
+		self:StopGatherFlash()
 	end
 
 	self:AdjustBackgroundStyle()
@@ -1690,7 +1690,7 @@ end
 
 function Mappy:StartGatherFlash()
 	self.EnableFlashingNodes = true
-	
+
 	if not self.ObjectIconsNormalCache then
 		self.ObjectIconsNormalCache = MinimapCluster:CreateTexture(nil, "BACKGROUND")
 		self.ObjectIconsNormalCache:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
@@ -1709,13 +1709,13 @@ function Mappy:StartGatherFlash()
 		self.ObjectIconsNormalCache:SetTexture(self.ObjectIconsNormalPath)
 		self.ObjectIconsHighlightCache:SetTexture(self.ObjectIconsHighlightPath)
 	end
-	
+
 	self.SchedulerLib:ScheduleUniqueRepeatingTask(0.5, self.UpdateGatherFlash, self)
 end
 
 function Mappy:StopGatherFlash()
 	self.EnableFlashingNodes = false
-	
+
 	if self.ObjectIconsNormalCache then
 		self.ObjectIconsNormalCache:SetTexture("")
 		self.ObjectIconsHighlightCache:SetTexture("")
