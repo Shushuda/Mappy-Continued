@@ -1730,6 +1730,7 @@ function Mappy:UpdateGatherFlash()
 	if not self.EnableFlashingNodes then
 		self.SchedulerLib:UnscheduleTask(self.UpdateGatherFlash, self)
 		Minimap:SetBlipTexture(self.ObjectIconsNormalPath)
+        self.GatherFlashState = false
 		return
 	end
 
