@@ -217,16 +217,6 @@ function Mappy:AddonLoaded(pEventID, pAddonName)
 	SLASH_MAPPY1 = "/mappy"
 end
 
-function Mappy:HookMinimapClusterGetBottom()
-	MinimapCluster.Mappy_OriginalGetBottom = MinimapCluster.GetBottom
-	MinimapCluster.GetBottom = MinimapCluster.GetTop
-end
-
-function Mappy:UnhookMinimapClusterGetBottom()
-	MinimapCluster.GetBottom = MinimapCluster.Mappy_OriginalGetBottom
-	MinimapCluster.Mappy_OriginalGetBottom = nil
-end
-
 function Mappy:InitializeSettings()
 	gMappy_Settings =
 	{
@@ -255,6 +245,7 @@ function Mappy:InitializeSettings()
 				HideTimeManagerClock = false,
 				FlashGatherNodes = false,
                 NormalGatherNodes = true, -- use large icons
+                UseAddonPosition = false,
 			},
 			gather =
 			{
@@ -286,6 +277,7 @@ function Mappy:InitializeSettings()
 					OffsetX = -80,
 					OffsetY = -50
 				},
+                UseAddonPosition = false,
 			},
 		},
 	}
@@ -303,7 +295,7 @@ function Mappy:InitializeMinimap()
 
     MinimapCluster.BorderTop:Hide()
     Minimap.ZoomHitArea:Hide()
-	
+
 	-- Add scroll wheel support
 	Minimap:SetScript("OnMouseWheel", function (pMinimap, pDirection) self:MinimapMouseWheel(pDirection) end)
 	Minimap:EnableMouseWheel(true)
@@ -325,6 +317,9 @@ function Mappy:InitializeMinimap()
 	self.EventLib:RegisterEvent("PLAYER_REGEN_DISABLED", self.RegenDisabled, self)
 	self.EventLib:RegisterEvent("PLAYER_STARTED_MOVING", self.StartedMoving, self)
 	self.EventLib:RegisterEvent("PLAYER_STOPPED_MOVING", self.StoppedMoving, self)
+
+    -- Reapply addon positioning after Edit Mode exit
+    hooksecurefunc(EditModeManagerFrame, "ExitEditMode", self.EditModeExit)
 	
 	self:RegenEnabled()
 	
@@ -532,9 +527,6 @@ function Mappy:EnlargeMinimalistButtons()
 end
 
 function Mappy:InitializeDragging()
-    MinimapCluster:SetMovable(true)
-    MinimapCluster:SetUserPlaced(true)
-
     Minimap:RegisterForDrag("LeftButton")
 
     Minimap:SetScript("OnDragStart", function() Mappy:StartMovingMinimap() end)
@@ -542,13 +534,9 @@ function Mappy:InitializeDragging()
 
     MinimapCluster.Mappy_SetPoint = MinimapCluster.SetPoint
     MinimapCluster.Mappy_ClearAllPoints = MinimapCluster.ClearAllPoints
-    MinimapCluster.SetPoint = function () end
-    MinimapCluster.ClearAllPoints = function () end
 
     Minimap.Mappy_SetPoint = Minimap.SetPoint
     Minimap.Mappy_ClearAllPoints = Minimap.ClearAllPoints
-    Minimap.SetPoint = function () end
-    Minimap.ClearAllPoints = function () end
 
     Minimap:Mappy_ClearAllPoints()
     Minimap:Mappy_SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
@@ -750,12 +738,10 @@ end
 
 function Mappy:unlock(pParameter)
     self.CurrentProfile.LockPosition = nil
-    --self:LoadProfile(self.CurrentProfile)
 end
 
 function Mappy:lock(pParameter)
     self.CurrentProfile.LockPosition = true
-    --self:LoadProfile(self.CurrentProfile)
 end
 
 function Mappy:save(pParameter)
@@ -1013,12 +999,22 @@ function Mappy:ConfigureMinimap()
 		return
 	end
 
+    if EditModeManagerFrame:IsEditModeActive() then
+        return
+    end
+
 	self.StartingCorner = self.CurrentProfile.StartingCorner or "TOPRIGHT"
 	
 	self:ConfigureMinimapOptions()
 	
-	self:SetFramePosition(MinimapCluster, self.CurrentProfile)
-	
+    -- Overwrite Edit Mode position or reapply it
+    if self.CurrentProfile.UseAddonPosition then
+	    self:SetFramePosition(MinimapCluster, self.CurrentProfile)
+    else
+        -- Wait for Blizz to allow addons to refresh Edit Mode layout
+        --EditModeManagerFrame:RevertAllChanges()
+    end
+
 	Minimap:SetWidth(self.CurrentProfile.MinimapSize)
 	Minimap:SetHeight(self.CurrentProfile.MinimapSize)
 	
@@ -1079,19 +1075,6 @@ function Mappy:ConfigureMinimap()
             or isHeroic or displayMythic or displayHeroic ) then
                 vButton = nil
             end
-
-            --[[
-            -- I'm leaving this debug in because I dont trust this code at all
-            -- needs more testing, especially guild, lfr, sitting outside lfr
-
-            if ( isChallengeMode ) then
-                print('its a challenge mode')
-            elseif ( instanceType == "raid" or isHeroic or displayMythic or displayHeroic ) then
-                print('its an instance')
-            else
-                print('its nothing')
-            end
-            ]]--
         end
 
 		if vNextButton.Mappy_SetPoint then
@@ -1116,41 +1099,6 @@ function Mappy:ConfigureMinimap()
 		else
 			SetCVar("rotateMinimap", "0")
 		end
-	end
-
-	-- Update the cluster position hack
-	Mappy:UpdateMinimapClusterBottomHook()
-end
-
-function Mappy:UpdateMinimapClusterBottomHook()
-	-- Blizzard modified MultiActionBars to calculate a scaling value based on the
-	-- MinimapCluster's bottom position. This causes problems if the bottom is too
-	-- low on the screen (gather mode or positioning map in a bottom corner, for
-	-- example), so I'm hooking GetBottom() to return a high number to avoid the problem.
-	local minimapClusterBottomIsHooked = MinimapCluster.Mappy_OriginalGetBottom ~= nil
-
-	-- Get the actual bottom of the minimap
-	local minimapClusterBottom
-	if minimapClusterBottomIsHooked then
-		minimapClusterBottom = MinimapCluster.Mappy_OriginalGetBottom(MinimapCluster)
-	else
-		minimapClusterBottom = MinimapCluster:GetBottom()
-	end
-
-	-- Determine if the hook should be applied
-	local minimapClusterBottomMin = UIParent:GetTop() * 0.75
-	local minimapClusterBottomNeedsHooked = minimapClusterBottom < minimapClusterBottomMin
-
-	-- Leave if the hook state is already good
-	if minimapClusterBottomNeedsHooked == minimapClusterBottomIsHooked then
-		return
-	end
-
-	-- Hook/unhook
-	if minimapClusterBottomNeedsHooked then
-		Mappy:HookMinimapClusterGetBottom()
-	else
-		Mappy:UnhookMinimapClusterGetBottom()
 	end
 end
 
@@ -1464,6 +1412,12 @@ function Mappy:StoppedMoving()
 	self:AdjustAlpha()
 end
 
+function Mappy:EditModeExit()
+    if Mappy.CurrentProfile.UseAddonPosition then
+        Mappy:LoadProfile(Mappy.CurrentProfile)
+    end
+end
+
 function Mappy:UpdateMountedState()
 	local	isMounted = IsMounted()
 	
@@ -1542,6 +1496,23 @@ function Mappy:SetHideZoneName(pHide)
 		self.CurrentProfile.HideZoneName = nil
 		MinimapCluster.ZoneTextButton:Show()
 	end
+end
+
+function Mappy:SetAddonPosition(pEnable)
+    if pEnable then
+        self.CurrentProfile.UseAddonPosition = true
+        MappyLockPositionCheckbuttonText:SetFontObject("GameFontNormalSmall")
+    else
+        self.CurrentProfile.UseAddonPosition = nil
+        MappyLockPositionCheckbuttonText:SetFontObject("GameFontDisableSmall")
+
+        -- Wait for Blizz to allow addons to refresh Edit Mode layout
+        self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."ENTER and EXIT Edit Mode to apply changes!")
+    end
+    MappyLockPositionCheckbutton:SetEnabled(pEnable)
+
+    -- restore correct positions
+    self:LoadProfile(self.CurrentProfile)
 end
 
 function Mappy:SetLockPosition(pLock)
@@ -1704,7 +1675,7 @@ function Mappy:MinimapMouseWheel(pWheelDirection)
 		end
 
 		Minimap.ZoomIn:Enable()
-		
+
 		if Minimap:GetZoom() == 0 then
 			Minimap.ZoomOut:Disable()
 		end
@@ -1712,38 +1683,34 @@ function Mappy:MinimapMouseWheel(pWheelDirection)
 end
 
 function Mappy:StartMovingMinimap()
-	if self.CurrentProfile.LockPosition then
+	if self.CurrentProfile.LockPosition
+    or not self.CurrentProfile.UseAddonPosition then
 		return
 	end
 
 	-- Enable moving
-
-	MinimapCluster.SetPoint = MinimapCluster.Mappy_SetPoint
-	MinimapCluster.ClearAllPoints = MinimapCluster.Mappy_ClearAllPoints
+    MinimapCluster:SetMovable(true)
+    MinimapCluster:SetUserPlaced(true)
 
 	-- Start moving
-
 	MinimapCluster:StartMoving()
 end
 
 function Mappy:StopMovingMinimap()
-	if self.CurrentProfile.LockPosition then
+	if self.CurrentProfile.LockPosition
+    or not self.CurrentProfile.UseAddonPosition then
 		return
 	end
 
 	-- Stop moving
-
 	MinimapCluster:StopMovingOrSizing()
-
-	-- Disable moving
-
-	MinimapCluster.SetPoint = function () end
-	MinimapCluster.ClearAllPoints = function () end
-
-	-- Save the new position
 
 	MinimapCluster:SetUserPlaced(true) -- Must leave this true or UIParent will screw up laying out windows
 
+	-- Disable moving
+    MinimapCluster:SetMovable(false)
+
+	-- Save the new position
 	self:PositionChanged()
 end
 
@@ -2376,10 +2343,28 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.GhostCheckbutton:SetScript("OnClick", function (self) Mappy:SetGhost(self:GetChecked()) end)
 	MappyGhostCheckbuttonText:SetText("Pass clicks through")
 
+    -- Use Addon positioning
+
+    self.AddonPositionCheckbutton = CreateFrame("CheckButton", "MappyAddonPositionCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.AddonPositionCheckbutton:SetPoint("TOPLEFT", self.GhostCheckbutton, "TOPLEFT", 0, -40)
+    self.AddonPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetAddonPosition(self:GetChecked()) end)
+    MappyAddonPositionCheckbuttonText:SetText("Use Addon positioning instead of Edit Mode")
+    -- Tooltip
+    self.AddonPositionCheckbutton.Tooltip = CreateFrame("GameTooltip", "MappyAddonPositionGameTooltip", self, "GameTooltipTemplate")
+    -- Button tooltip
+    MappyAddonPositionCheckbutton:SetScript("OnEnter", function(self)
+        MappyAddonPositionCheckbutton.Tooltip:SetOwner(self, "ANCHOR_TOP")
+        MappyAddonPositionCheckbutton.Tooltip:AddLine("ENTER and EXIT Edit Mode to apply Edit Mode positioning!")
+        MappyAddonPositionCheckbutton.Tooltip:Show()
+    end)
+    MappyAddonPositionCheckbutton:SetScript("OnLeave", function(self)
+        MappyAddonPositionCheckbutton.Tooltip:Hide()
+    end)
+
     -- Lock position
 
 	self.LockPositionCheckbutton = CreateFrame("CheckButton", "MappyLockPositionCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.LockPositionCheckbutton:SetPoint("TOPLEFT", self.GhostCheckbutton, "TOPLEFT", 0, -40)
+	self.LockPositionCheckbutton:SetPoint("TOPLEFT", self.AddonPositionCheckbutton, "TOPLEFT", 0, -25)
 	self.LockPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetLockPosition(self:GetChecked()) end)
 	MappyLockPositionCheckbuttonText:SetText("Lock position")
 
@@ -2394,15 +2379,23 @@ function Mappy._OptionsPanel:OnShow()
 	self.AlphaSlider:SetValue(Mappy.CurrentProfile.MinimapAlpha or 1)
 	self.CombatAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapCombatAlpha or 0.2)
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
-	-- Shushuda
     self.HideCoordinatesCheckbutton:SetChecked(Mappy.CurrentProfile.HideCoordinates)
 	self.HideZoneNameCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoneName)
 	self.HideBorderCheckbutton:SetChecked(Mappy.CurrentProfile.HideBorder)
 	self.FlashGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.FlashGatherNodes)
 	self.LargeGatherNodesCheckbutton:SetChecked(not Mappy.CurrentProfile.NormalGatherNodes)
     self.OldGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.OldGatherNodes)
+    self.AddonPositionCheckbutton:SetChecked(Mappy.CurrentProfile.UseAddonPosition)
     self.LockPositionCheckbutton:SetChecked(Mappy.CurrentProfile.LockPosition)
 	self.GhostCheckbutton:SetChecked(Mappy.CurrentProfile.GhostMinimap)
+
+    self.LockPositionCheckbutton:SetEnabled(Mappy.CurrentProfile.UseAddonPosition)
+
+    if self.LockPositionCheckbutton:IsEnabled() then
+        MappyLockPositionCheckbuttonText:SetFontObject("GameFontNormalSmall")
+    else
+        MappyLockPositionCheckbuttonText:SetFontObject("GameFontDisableSmall")
+    end
 
 	Mappy.DisableUpdates = false
 end
