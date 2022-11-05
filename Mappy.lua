@@ -1011,8 +1011,8 @@ function Mappy:ConfigureMinimap()
     if self.CurrentProfile.UseAddonPosition then
 	    self:SetFramePosition(MinimapCluster, self.CurrentProfile)
     else
-        -- Wait for Blizz to allow addons to refresh Edit Mode layout
-        --EditModeManagerFrame:RevertAllChanges()
+        local layoutIndex = EditModeManagerFrame.layoutInfo.activeLayout
+        C_EditMode.SetActiveLayout(layoutIndex)
     end
 
 	Minimap:SetWidth(self.CurrentProfile.MinimapSize)
@@ -1505,9 +1505,6 @@ function Mappy:SetAddonPosition(pEnable)
     else
         self.CurrentProfile.UseAddonPosition = nil
         MappyLockPositionCheckbuttonText:SetFontObject("GameFontDisableSmall")
-
-        -- Wait for Blizz to allow addons to refresh Edit Mode layout
-        self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."ENTER and EXIT Edit Mode to apply changes!")
     end
     MappyLockPositionCheckbutton:SetEnabled(pEnable)
 
@@ -2349,17 +2346,6 @@ function Mappy._OptionsPanel:Construct(pParent)
     self.AddonPositionCheckbutton:SetPoint("TOPLEFT", self.GhostCheckbutton, "TOPLEFT", 0, -40)
     self.AddonPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetAddonPosition(self:GetChecked()) end)
     MappyAddonPositionCheckbuttonText:SetText("Use Addon positioning instead of Edit Mode")
-    -- Tooltip
-    self.AddonPositionCheckbutton.Tooltip = CreateFrame("GameTooltip", "MappyAddonPositionGameTooltip", self, "GameTooltipTemplate")
-    -- Button tooltip
-    MappyAddonPositionCheckbutton:SetScript("OnEnter", function(self)
-        MappyAddonPositionCheckbutton.Tooltip:SetOwner(self, "ANCHOR_TOP")
-        MappyAddonPositionCheckbutton.Tooltip:AddLine("ENTER and EXIT Edit Mode to apply Edit Mode positioning!")
-        MappyAddonPositionCheckbutton.Tooltip:Show()
-    end)
-    MappyAddonPositionCheckbutton:SetScript("OnLeave", function(self)
-        MappyAddonPositionCheckbutton.Tooltip:Hide()
-    end)
 
     -- Lock position
 
