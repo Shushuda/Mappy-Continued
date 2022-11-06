@@ -836,8 +836,14 @@ function Mappy:StackButton(pButton, pNextButton)
         MiniOffsetV = -16
     elseif tableContains(self.BlizzardMinimalistButtons, self.StackingInfo.PreviousButton) then
         -- Correct offset if previous button was mini, but current button is not
-        MiniOffsetH = MiniOffsetH - 5
-        MiniOffsetV = MiniOffsetV - 5
+        if self.StackingInfo.PreviousButton == MinimapCluster.InstanceDifficulty then
+            -- ...unless it's the dungeon difficulty icon, it's badly formatted
+            MiniOffsetH = MiniOffsetH - 2
+            MiniOffsetV = MiniOffsetV - 2
+        else
+            MiniOffsetH = MiniOffsetH - 7
+            MiniOffsetV = MiniOffsetV - 7
+        end
     end
 
 	if not self.StackingInfo.PreviousButton then
@@ -847,7 +853,7 @@ function Mappy:StackButton(pButton, pNextButton)
 	end
 
 	-- See if there's going to be room for the next button
-	
+
 	if pNextButton then
         local vNextButtonSize = pNextButton:GetHeight()
 
