@@ -14,6 +14,8 @@ Mappy-Continued is a minimap addon focused on changing the minimap shape into a 
 
 Other features include:
 * Resizing of the minimap
+* Option to move the minimap via Edit Mode only
+* Option to move the minimap via addon settings only
 * Automatic stacking of minimap buttons along the minimap OR screen
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
 * Zooming in and out with the mouse wheel
