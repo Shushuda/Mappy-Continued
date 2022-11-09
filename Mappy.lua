@@ -2467,7 +2467,7 @@ function Mappy._OptionsPanel:Construct(pParent)
     MappyCoordSizeSliderLow:SetText("0.5")
     MappyCoordSizeSliderHigh:SetText("2")
     -- initial value
-    MappyCoordSizeSliderText:SetText("Text size - " .. Mappy.CurrentProfile.CoordSize or 1)
+    MappyCoordSizeSliderText:SetText("Text size - " .. (Mappy.CurrentProfile.CoordSize or 1))
     -- action
     self.CoordSizeSlider:SetScript("OnValueChanged", function (self, value)
         local vSize = tonumber(string.format("%.2f", value))
