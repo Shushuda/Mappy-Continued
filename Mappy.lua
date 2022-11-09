@@ -11,6 +11,8 @@ Mappy.enableBlips = true
 
 Mappy.StackingInfo = {}
 
+Mappy.CoordAnchorInfo = {}
+
 Mappy.BlizzardButtonNames = {
     "GameTimeFrame",
     MinimapCluster.MailFrame,
@@ -44,6 +46,26 @@ Mappy.IgnoreFrames = {
 	MinimapZoneTextButton = true,
 
 	CT_RASetsFrame = true,
+}
+
+Mappy.CoordAnchor = "BOTTOMLEFT"
+
+-- placeholder for coord anchor
+Mappy.CoordInfo = {
+    BOTTOMLEFT = {
+        CoordOffsetX = 5,
+        CoordOffsetY = 4,
+    },
+
+    BOTTOM = {
+        CoordOffsetX = 0,
+        CoordOffsetY = 10,
+    },
+
+    BOTTOMRIGHT = {
+        CoordOffsetX = -5,
+        CoordOffsetY = 4,
+    },
 }
 
 Mappy.StartingCorner = "TOPRIGHT"
@@ -246,6 +268,8 @@ function Mappy:InitializeSettings()
 				FlashGatherNodes = false,
                 NormalGatherNodes = true, -- use large icons
                 UseAddonPosition = false,
+                CoordSize = 1,
+                CoordAnchor = "BOTTOMLEFT",
 			},
 			gather =
 			{
@@ -278,6 +302,8 @@ function Mappy:InitializeSettings()
 					OffsetY = -50
 				},
                 UseAddonPosition = false,
+                CoordSize = 1,
+                CoordAnchor = "BOTTOMLEFT",
 			},
 		},
 	}
@@ -302,10 +328,8 @@ function Mappy:InitializeMinimap()
 	
 	-- Add the coordinates display
 	self.CoordString = Minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    -- TODO: Allow changing of text size
 	self.CoordString:SetHeight(12)
-	self.CoordString:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 5, 4)
-	
+
 	self.SchedulerLib:ScheduleRepeatingTask(0.2, self.Update, self)
 
 	-- Register for events
@@ -1000,25 +1024,28 @@ function Mappy:ConfigureMinimap()
 	if MinimapCluster:IsProtected() and not MinimapCluster:CanChangeProtectedState() then
 		return
 	end
-	
+
+    -- Combat is a no-no
 	if InCombatLockdown() then
 		return
 	end
 
+    -- Don't touch the frame if in Edit Mode, it's a taint monster
     if EditModeManagerFrame:IsEditModeActive() then
         return
     end
 
 	self.StartingCorner = self.CurrentProfile.StartingCorner or "TOPRIGHT"
-	
+    self.CoordAnchor = self.CurrentProfile.CoordAnchor or "BOTTOMLEFT"
+
 	self:ConfigureMinimapOptions()
-	
+
     -- Overwrite Edit Mode position or reapply it
     if self.CurrentProfile.UseAddonPosition then
 	    self:SetFramePosition(MinimapCluster, self.CurrentProfile)
     else
-        local layoutIndex = EditModeManagerFrame.layoutInfo.activeLayout
-        C_EditMode.SetActiveLayout(layoutIndex)
+        C_EditMode.SetActiveLayout(
+            EditModeManagerFrame.layoutInfo.activeLayout)
     end
 
 	Minimap:SetWidth(self.CurrentProfile.MinimapSize)
@@ -1050,7 +1077,22 @@ function Mappy:ConfigureMinimap()
         self.TimeManagerBG:SetPoint("CENTER", TimeManagerClockTicker, "CENTER", 3, -3)
         self.TimeManagerBG:SetSize(62, 29)
     end
-    
+
+    if self.CoordString then
+        self.CoordAnchorInfo = self.CoordInfo[self.CoordAnchor]
+
+        -- Set coord position and offset from border
+        self.CoordString:ClearAllPoints()
+        self.CoordString:SetPoint(self.CoordAnchor,
+                                  Minimap,
+                                  self.CoordAnchor,
+                                  self.CoordAnchorInfo.CoordOffsetX,
+                                  self.CoordAnchorInfo.CoordOffsetY)
+
+        -- Set text size + backwards compatibility
+        self.CoordString:SetTextScale(self.CurrentProfile.CoordSize or 1)
+    end
+
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
     end
@@ -1485,13 +1527,35 @@ function Mappy:SetHideTimeOfDay(pHide)
 	end
 end
 
-function Mappy:SetHideCoordinates(pHide)
-	if pHide then
+function Mappy:SetShowCoordinates(pShow)
+	if not pShow then
 		self.CurrentProfile.HideCoordinates = true
 		self.CoordString:SetText("")
 	else
 		self.CurrentProfile.HideCoordinates = nil
 	end
+end
+
+function Mappy:SetCoordinatesAnchor(pAnchor)
+    local vCorner = pAnchor:upper()
+
+    if vCorner == "BOTTOM"
+    or vCorner == "BOTTOMLEFT"
+    or vCorner == "BOTTOMRIGHT" then
+        self.CurrentProfile.CoordAnchor = vCorner
+        self:LoadProfile(self.CurrentProfile)
+    else
+        self:ErrorMessage("Corner must be BOTTOM, BOTTOMLEFT, or BOTTOMRIGHT")
+    end
+end
+
+function Mappy:SetCoordinatesSize(pSize)
+    if self.DisableUpdates then
+        return
+    end
+
+    self.CurrentProfile.CoordSize = pSize
+    self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 end
 
 function Mappy:SetHideZoneName(pHide)
@@ -2297,17 +2361,10 @@ function Mappy._OptionsPanel:Construct(pParent)
     self.SettingsHeader:SetPoint("TOPLEFT", self.SettingsLine, 5, 13)
     self.SettingsHeader:SetText("Main settings")
 
-	-- Hide coordinates
-
-	self.HideCoordinatesCheckbutton = CreateFrame("CheckButton", "MappyHideCoordinatesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.HideCoordinatesCheckbutton:SetPoint("TOPLEFT", self.SettingsLine, "TOPLEFT", 10, -15)
-	self.HideCoordinatesCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideCoordinates(self:GetChecked()) end)
-	MappyHideCoordinatesCheckbuttonText:SetText("Hide coordinates")
-
 	-- Hide zone name
 
 	self.HideZoneNameCheckbutton = CreateFrame("CheckButton", "MappyHideZoneNameCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.HideZoneNameCheckbutton:SetPoint("TOPLEFT", self.HideCoordinatesCheckbutton, "TOPLEFT", 0, -25)
+	self.HideZoneNameCheckbutton:SetPoint("TOPLEFT", self.SettingsLine, "TOPLEFT", 10, -15)
 	self.HideZoneNameCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideZoneName(self:GetChecked()) end)
 	MappyHideZoneNameCheckbuttonText:SetText("Hide zone name")
 
@@ -2321,7 +2378,7 @@ function Mappy._OptionsPanel:Construct(pParent)
 	-- Flash gathering nodes
 	
 	self.FlashGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyFlashGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.FlashGatherNodesCheckbutton:SetPoint("TOPLEFT", self.HideBorderCheckbutton, "TOPLEFT", 0, -40)
+	self.FlashGatherNodesCheckbutton:SetPoint("TOPLEFT", self.HideZoneNameCheckbutton, "TOPLEFT", 340, 0)
 	self.FlashGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetFlashGatherNodes(self:GetChecked()) end)
 	MappyFlashGatherNodesCheckbuttonText:SetText("Flash gathering nodes")
 
@@ -2349,7 +2406,7 @@ function Mappy._OptionsPanel:Construct(pParent)
     -- Use Addon positioning
 
     self.AddonPositionCheckbutton = CreateFrame("CheckButton", "MappyAddonPositionCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-    self.AddonPositionCheckbutton:SetPoint("TOPLEFT", self.GhostCheckbutton, "TOPLEFT", 0, -40)
+    self.AddonPositionCheckbutton:SetPoint("TOPLEFT", self.HideBorderCheckbutton, "TOPLEFT", 0, -40)
     self.AddonPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetAddonPosition(self:GetChecked()) end)
     MappyAddonPositionCheckbuttonText:SetText("Use Addon positioning instead of Edit Mode")
 
@@ -2360,18 +2417,76 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.LockPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetLockPosition(self:GetChecked()) end)
 	MappyLockPositionCheckbuttonText:SetText("Lock position")
 
+    --------------------------------
+    -- coords settings header
+    --------------------------------
+    self.CoordLine = self:CreateLine()
+    self.CoordLine:SetStartPoint("TOPLEFT", self, 10, -424)
+    self.CoordLine:SetEndPoint("TOPRIGHT", self, -20, -424)
+    self.CoordLine:SetColorTexture(1,1,1,0.25)
+    self.CoordLine:SetThickness(2)
+
+    self.CoordHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.CoordHeader:SetPoint("TOPLEFT", self.CoordLine, 5, 13)
+    self.CoordHeader:SetText("Coordinates")
+
+	-- Hide coordinates
+
+    self.HideCoordinatesCheckbutton = CreateFrame("CheckButton", "MappyHideCoordinatesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.HideCoordinatesCheckbutton:SetPoint("TOPLEFT", self.CoordLine, "TOPLEFT", 10, -15)
+    self.HideCoordinatesCheckbutton:SetScript("OnClick", function (self) Mappy:SetShowCoordinates(self:GetChecked()) end)
+    MappyHideCoordinatesCheckbuttonText:SetText("Show coordinates")
+
+    -- Coordinates corner
+
+    self.CoordBottomLeftCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomLeftCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.CoordBottomLeftCheckbutton:SetPoint("TOPLEFT", self.HideCoordinatesCheckbutton, "TOPLEFT", 30, -25)
+    self.CoordBottomLeftCheckbutton:SetScript("OnClick", function (button) Mappy:SetCoordinatesAnchor("BOTTOMLEFT") self:OnShow() end)
+    MappyCoordBottomLeftCheckbuttonText:SetText("Bottom-left")
+
+    self.CoordBottomCenterCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomCenterCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.CoordBottomCenterCheckbutton:SetPoint("TOPLEFT", self.CoordBottomLeftCheckbutton, "TOPLEFT", 120, 0)
+    self.CoordBottomCenterCheckbutton:SetScript("OnClick", function (button) Mappy:SetCoordinatesAnchor("BOTTOM") self:OnShow() end)
+    MappyCoordBottomCenterCheckbuttonText:SetText("Bottom-center")
+
+    self.CoordBottomRightCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomRightCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.CoordBottomRightCheckbutton:SetPoint("TOPLEFT", self.CoordBottomCenterCheckbutton, "TOPLEFT", 120, 0)
+    self.CoordBottomRightCheckbutton:SetScript("OnClick", function (button) Mappy:SetCoordinatesAnchor("BOTTOMRIGHT") self:OnShow() end)
+    MappyCoordBottomRightCheckbuttonText:SetText("Bottom-right")
+
+    -- Size slider
+
+    self.CoordSizeSlider = CreateFrame("Slider", "MappyCoordSizeSlider", self, "OptionsSliderTemplate")
+    self.CoordSizeSlider:SetWidth(200)
+    self.CoordSizeSlider:SetPoint("TOPLEFT", self.HideCoordinatesCheckbutton, "BOTTOMLEFT", 10, -50)
+    -- stepping
+    self.CoordSizeSlider:SetMinMaxValues(0.5, 2)
+    self.CoordSizeSlider:SetValueStep(0.05)
+    self.CoordSizeSlider:SetObeyStepOnDrag(true)
+    self.CoordSizeSlider:SetStepsPerPage(0.05)
+    MappyCoordSizeSliderLow:SetText("0.5")
+    MappyCoordSizeSliderHigh:SetText("2")
+    -- initial value
+    MappyCoordSizeSliderText:SetText("Text size - " .. Mappy.CurrentProfile.CoordSize or 1)
+    -- action
+    self.CoordSizeSlider:SetScript("OnValueChanged", function (self, value)
+        local vSize = tonumber(string.format("%.2f", value))
+        Mappy:SetCoordinatesSize(vSize)
+        MappyCoordSizeSliderText:SetText("Text scale - " .. vSize)
+    end)
+
+
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
 
 function Mappy._OptionsPanel:OnShow()
 	Mappy.DisableUpdates = true
-	
+
 	self.SizeSlider:SetValue(Mappy.CurrentProfile.MinimapSize or 140)
 	self.AlphaSlider:SetValue(Mappy.CurrentProfile.MinimapAlpha or 1)
 	self.CombatAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapCombatAlpha or 0.2)
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
-    self.HideCoordinatesCheckbutton:SetChecked(Mappy.CurrentProfile.HideCoordinates)
 	self.HideZoneNameCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoneName)
 	self.HideBorderCheckbutton:SetChecked(Mappy.CurrentProfile.HideBorder)
 	self.FlashGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.FlashGatherNodes)
@@ -2380,6 +2495,12 @@ function Mappy._OptionsPanel:OnShow()
     self.AddonPositionCheckbutton:SetChecked(Mappy.CurrentProfile.UseAddonPosition)
     self.LockPositionCheckbutton:SetChecked(Mappy.CurrentProfile.LockPosition)
 	self.GhostCheckbutton:SetChecked(Mappy.CurrentProfile.GhostMinimap)
+
+    self.HideCoordinatesCheckbutton:SetChecked(not Mappy.CurrentProfile.HideCoordinates)
+    self.CoordBottomLeftCheckbutton:SetChecked(not Mappy.CurrentProfile.CoordAnchor or Mappy.CurrentProfile.CoordAnchor == "BOTTOMLEFT")
+    self.CoordBottomCenterCheckbutton:SetChecked(Mappy.CurrentProfile.CoordAnchor == "BOTTOM")
+    self.CoordBottomRightCheckbutton:SetChecked(Mappy.CurrentProfile.CoordAnchor == "BOTTOMRIGHT")
+    self.CoordSizeSlider:SetValue(Mappy.CurrentProfile.CoordSize or 1)
 
     self.LockPositionCheckbutton:SetEnabled(Mappy.CurrentProfile.UseAddonPosition)
 
