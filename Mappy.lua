@@ -184,17 +184,17 @@ Mappy.ProfileNameMap = {
 	NONE = "Don't change"
 }
 
-Mappy.ObjectIconsNormalSmallPath = "Interface\\MINIMAP\\ObjectIconsAtlas"
-Mappy.ObjectIconsHighlightSmallPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On"
+Mappy.ObjectIconsNormalLargePath = "Interface\\MINIMAP\\ObjectIconsAtlas"
+Mappy.ObjectIconsHighlightLargePath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On"
 
-Mappy.ObjectIconsNormalLargePath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_Large"
-Mappy.ObjectIconsHighlightLargePath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On_Large"
+Mappy.ObjectIconsNormalSmallPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_Small"
+Mappy.ObjectIconsHighlightSmallPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On_Small"
 
 Mappy.ObjectIconsNormalOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_Old"
 Mappy.ObjectIconsHighlightOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On_Old"
 
-Mappy.ObjectIconsNormalLargeOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_Large_Old"
-Mappy.ObjectIconsHighlightLargeOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On_Large_Old"
+Mappy.ObjectIconsNormalSmallOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_Small_Old"
+Mappy.ObjectIconsHighlightSmallOldPath = "Interface\\Addons\\Mappy\\Textures\\ObjectIconsAtlas_On_Small_Old"
 
 Mappy.ObjectIconsNormalPath = ""
 Mappy.ObjectIconsHighlightPath = ""
@@ -466,16 +466,16 @@ function Mappy:ConfigureMinimapOptions()
             self.ObjectIconsNormalPath = self.ObjectIconsNormalOldPath
             self.ObjectIconsHighlightPath = self.ObjectIconsHighlightOldPath
         else
-    		self.ObjectIconsNormalPath = self.ObjectIconsNormalSmallPath
-	    	self.ObjectIconsHighlightPath = self.ObjectIconsHighlightSmallPath
+            self.ObjectIconsNormalPath = self.ObjectIconsNormalLargePath
+            self.ObjectIconsHighlightPath = self.ObjectIconsHighlightLargePath
         end
 	else
         if self.CurrentProfile.OldGatherNodes then
-            self.ObjectIconsNormalPath = self.ObjectIconsNormalLargeOldPath
-            self.ObjectIconsHighlightPath = self.ObjectIconsHighlightLargeOldPath
+            self.ObjectIconsNormalPath = self.ObjectIconsNormalSmallOldPath
+            self.ObjectIconsHighlightPath = self.ObjectIconsHighlightSmallOldPath
         else
-    		self.ObjectIconsNormalPath = self.ObjectIconsNormalLargePath
-	    	self.ObjectIconsHighlightPath = self.ObjectIconsHighlightLargePath
+            self.ObjectIconsNormalPath = self.ObjectIconsNormalSmallPath
+            self.ObjectIconsHighlightPath = self.ObjectIconsHighlightSmallPath
         end
 	end
 	
@@ -1487,8 +1487,8 @@ function Mappy:SetFlashGatherNodes(pFlash)
 	end
 end
 
-function Mappy:SetLargeGatherNodes(pLarge)
-	self.CurrentProfile.NormalGatherNodes = not pLarge
+function Mappy:SetSmallGatherNodes(pSmall)
+	self.CurrentProfile.NormalGatherNodes = not pSmall
 	self:ConfigureMinimapOptions()
 end
 
@@ -2382,17 +2382,17 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.FlashGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetFlashGatherNodes(self:GetChecked()) end)
 	MappyFlashGatherNodesCheckbuttonText:SetText("Flash gathering nodes")
 
-	-- Large gathering nodes
+	-- Small gathering nodes
 	
-	self.LargeGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyLargeGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.LargeGatherNodesCheckbutton:SetPoint("TOPLEFT", self.FlashGatherNodesCheckbutton, "TOPLEFT", 0, -25)
-	self.LargeGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetLargeGatherNodes(self:GetChecked()) end)
-	MappyLargeGatherNodesCheckbuttonText:SetText("Large gathering nodes")
+	self.SmallGatherNodesCheckbutton = CreateFrame("CheckButton", "MappySmallGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.SmallGatherNodesCheckbutton:SetPoint("TOPLEFT", self.FlashGatherNodesCheckbutton, "TOPLEFT", 0, -25)
+	self.SmallGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetSmallGatherNodes(self:GetChecked()) end)
+	MappySmallGatherNodesCheckbuttonText:SetText("Small gathering nodes")
 
     -- Old gathering nodes
 
     self.OldGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyOldGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-    self.OldGatherNodesCheckbutton:SetPoint("TOPLEFT", self.LargeGatherNodesCheckbutton, "TOPLEFT", 0, -25)
+    self.OldGatherNodesCheckbutton:SetPoint("TOPLEFT", self.SmallGatherNodesCheckbutton, "TOPLEFT", 0, -25)
     self.OldGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetOldGatherNodes(self:GetChecked()) end)
     MappyOldGatherNodesCheckbuttonText:SetText("Classic-style gathering nodes")
 
@@ -2490,7 +2490,7 @@ function Mappy._OptionsPanel:OnShow()
 	self.HideZoneNameCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoneName)
 	self.HideBorderCheckbutton:SetChecked(Mappy.CurrentProfile.HideBorder)
 	self.FlashGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.FlashGatherNodes)
-	self.LargeGatherNodesCheckbutton:SetChecked(not Mappy.CurrentProfile.NormalGatherNodes)
+	self.SmallGatherNodesCheckbutton:SetChecked(not Mappy.CurrentProfile.NormalGatherNodes)
     self.OldGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.OldGatherNodes)
     self.AddonPositionCheckbutton:SetChecked(Mappy.CurrentProfile.UseAddonPosition)
     self.LockPositionCheckbutton:SetChecked(Mappy.CurrentProfile.LockPosition)
