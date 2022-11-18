@@ -2,9 +2,9 @@
 ## Notes: Minimap enhancements
 ## Title: Mappy Continued
 ## Author: John Stephen, LynchburgJack, Shushuda
-## Version: 4.5.1
+## Version: 4.5.2b
 ## SavedVariables: gMappy_Settings
-## OptionalDeps: Gatherer, GatherMate, GatherMate2
+## OptionalDeps: Gatherer, GatherMate, GatherMate2, MBB
 
 Libraries/MC2AddonLib/MC2AddonLib.lua
 Libraries/MC2DebugLib/MC2DebugLib.lua
