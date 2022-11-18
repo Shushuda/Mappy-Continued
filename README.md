@@ -22,6 +22,7 @@ Other features include:
 * Alpha settings, separate for combat, movement and default state
 * Profiles (including being able to set a profile for mounting, dungeon etc)
 * Gathering overlay support for Gatherer and GatherMate
+* Partial compatibility with MinimapButtonBag Reborn
 * Bigger and/or blinking gathering nodes
 * Classic-style dot for gathering nodes
 * Player coordinates
