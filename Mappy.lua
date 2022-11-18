@@ -7,6 +7,8 @@ local gAddonName = select(1, ...)
 
 gMappy_Settings = nil
 
+Mappy.MBBFrame = nil
+
 Mappy.enableBlips = true
 
 Mappy.StackingInfo = {}
@@ -211,7 +213,7 @@ end
 --
 
 function Mappy:AddonLoaded(pEventID, pAddonName)
-	if pAddonName ~= gAddonName then
+    if pAddonName ~= gAddonName then
 		return
 	end
 	
@@ -312,7 +314,7 @@ end
 function Mappy:InitializeMinimap()
     -- Enlarge and add borders to minimalist buttons
     self:EnlargeMinimalistButtons()
-	
+
     -- Locate the addon buttons around the minimap
 	self:FindMinimapButtons()
 
@@ -393,12 +395,12 @@ function Mappy:FindMinimapButtons()
 			self:RegisterMinimapButton(vButton)
 		end
 	end
-	
-	-- self:ShowFrameTree(Minimap)
-	
-	self:FindAddonButtons(MinimapCluster)
-	self:FindAddonButtons(MinimapBackdrop)
-	self:FindAddonButtons(Minimap)
+
+    -- MBB compatibility - Mappy.MBBFrame
+    -- TODO: Make this more universal (array instead of one addon name)
+	self:FindAddonButtons(MinimapCluster, nil, Mappy.MBBFrame)
+	self:FindAddonButtons(MinimapBackdrop, nil, Mappy.MBBFrame)
+	self:FindAddonButtons(Minimap, nil, Mappy.MBBFrame)
 end
 
 function Mappy:RegisterMinimapButton(pButton, pAlwaysStack)
@@ -1251,15 +1253,21 @@ function Mappy:IsButtonFrame(pFrame, pAnchoredTo)
 	return true
 end
 
-function Mappy:FindAddonButtons(pFrame, pAnchoredTo)
-	for _, vFrame in pairs({pFrame:GetChildren()}) do
-		if self:IsButtonFrame(vFrame, pAnchoredTo) then
-			self:RegisterMinimapButton(vFrame)
-		end
-	end
-	
+function Mappy:FindAddonButtons(pFrame, pAnchoredTo, pAddonAllow)
+    for _, vFrame in pairs({pFrame:GetChildren()}) do
+        if self:IsButtonFrame(vFrame, pAnchoredTo) then
+            -- MBB compatibility
+            if pAddonAllow and vFrame:GetName() ~= pAddonAllow then
+                local vFrameName = vFrame:GetName() or "Anonymous"
+                self.IgnoreFrames[vFrameName] = true
+            else
+                self:RegisterMinimapButton(vFrame)
+            end
+        end
+    end
+
 	if not pAnchoredTo then
-		self:FindAddonButtons(UIParent, pFrame)
+		self:FindAddonButtons(UIParent, pFrame, pAddonAllow)
 	end
 end
 
@@ -2118,6 +2126,14 @@ if GatherMate or GatherMate2 then
 		
 		return vPin
 	end
+end
+
+----------------------------------------
+-- MBB support
+----------------------------------------
+
+if MBBFrame then
+    Mappy.MBBFrame = "MBB_MinimapButtonFrame"
 end
 
 ----------------------------------------
