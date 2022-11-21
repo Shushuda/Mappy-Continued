@@ -10,8 +10,6 @@ gMappy_Settings = nil
 -- MBB compatibility
 Mappy.MBBenabled = nil
 
-Mappy.MBBFrame = "MBB_MinimapButtonFrame"
-
 Mappy.enableBlips = true
 
 Mappy.StackingInfo = {}
@@ -41,7 +39,7 @@ Mappy.BlizzardMinimalistButtons = {
 
 Mappy.OtherAddonButtonNames = {
 	"CT_RASets_Button",
-    Mappy.MBBFrame,
+    "MBB_MinimapButtonFrame",
 }
 
 Mappy.IgnoreFrames = {
@@ -276,7 +274,6 @@ function Mappy:InitializeSettings()
                 UseAddonPosition = false,
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
-                IgnoreMBB = true,
 			},
 			gather =
 			{
@@ -311,7 +308,6 @@ function Mappy:InitializeSettings()
                 UseAddonPosition = false,
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
-                IgnoreMBB = true,
 			},
 		},
 	}
@@ -432,13 +428,6 @@ end
 function Mappy:ConfigureMinimapOptions()
 	if self.CurrentProfile.AutoArrangeButtons then
 		self:EnableButtonStacking()
-
-        -- MBB compatibility
-        if self.CurrentProfile.IgnoreMBB then
-            self:IgnoreMBB(true)
-        else
-            self:IgnoreMBB(false)
-        end
 	else
 		self:DisableButtonStacking()
 	end
@@ -526,14 +515,6 @@ function Mappy:DisableButtonStacking()
 	for _, vButton in ipairs(self.MinimapButtons) do
 		vButton:Mappy_SetStackingEnabled(false)
 	end
-end
-
--- MBB compatibility
-function Mappy:IgnoreMBB(pIgnore)
-    if self.MBBenabled then
-        local vButton = _G[self.MBBFrame]
-        vButton:Mappy_SetStackingEnabled(not pIgnore)
-    end
 end
 
 -- create borders and enlarge these new mini buttons
@@ -1622,16 +1603,9 @@ end
 function Mappy:SetAutoArrangeButtons(pEnable)
 	if pEnable then
 		self.CurrentProfile.AutoArrangeButtons = true
-        -- MBB compatibility
-        if Mappy.MBBenabled then
-            MappyIgnoreMBBCheckbuttonText:SetFontObject("GameFontNormalSmall")
-        end
 	else
 		self.CurrentProfile.AutoArrangeButtons = nil
-        MappyIgnoreMBBCheckbuttonText:SetFontObject("GameFontDisableSmall")
 	end
-
-    MappyIgnoreMBBCheckbutton:SetEnabled(self.MBBenabled and pEnable)
 
 	self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 end
@@ -1644,16 +1618,6 @@ function Mappy:SetStackToScreen(pStackToScreen)
 	end
 
 	self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
-end
-
-function Mappy:SetIgnoreMBB(pIgnoreMBB)
-    if pIgnoreMBB then
-        self.CurrentProfile.IgnoreMBB = true
-    else
-        self.CurrentProfile.IgnoreMBB = nil
-    end
-
-    self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 end
 
 function Mappy.Button_OnHide(self, ...)
@@ -2679,13 +2643,6 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.StackToScreenCheckbutton:SetScript("OnClick", function (self) Mappy:SetStackToScreen(self:GetChecked()) end)
 	MappyStackToScreenCheckbuttonText:SetText("Stack around screen")
 
-    -- Dont stack MBB
-
-    self.IgnoreMBBCheckbutton = CreateFrame("CheckButton", "MappyIgnoreMBBCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-    self.IgnoreMBBCheckbutton:SetPoint("TOPLEFT", self.StackToScreenCheckbutton, "TOPLEFT", -30, -35)
-    self.IgnoreMBBCheckbutton:SetScript("OnClick", function (self) Mappy:SetIgnoreMBB(self:GetChecked()) end)
-    MappyIgnoreMBBCheckbuttonText:SetText("Don't stack 'MinimapButtonBag Reborn' addon")
-
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -2702,15 +2659,6 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	self.BottomRightCheckbutton:SetChecked(Mappy.CurrentProfile.StartingCorner == "BOTTOMRIGHT")
 	self.CCWCheckbutton:SetChecked(Mappy.CurrentProfile.CCW)
 	self.StackToScreenCheckbutton:SetChecked(Mappy.CurrentProfile.StackToScreen)
-    self.IgnoreMBBCheckbutton:SetChecked(Mappy.CurrentProfile.IgnoreMBB)
-
-    self.IgnoreMBBCheckbutton:SetEnabled(Mappy.MBBenabled and Mappy.CurrentProfile.AutoArrangeButtons)
-
-    if self.IgnoreMBBCheckbutton:IsEnabled() then
-        MappyIgnoreMBBCheckbuttonText:SetFontObject("GameFontNormalSmall")
-    else
-        MappyIgnoreMBBCheckbuttonText:SetFontObject("GameFontDisableSmall")
-    end
 
 	Mappy.DisableUpdates = false
 end
