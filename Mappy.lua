@@ -346,6 +346,8 @@ function Mappy:InitializeMinimap()
 	self.EventLib:RegisterEvent("PLAYER_STARTED_MOVING", self.StartedMoving, self)
 	self.EventLib:RegisterEvent("PLAYER_STOPPED_MOVING", self.StoppedMoving, self)
 
+    self.EventLib:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED", self.TalentChanged, self)
+
     -- Reapply addon positioning after Edit Mode exit
     hooksecurefunc(EditModeManagerFrame, "ExitEditMode", self.EditModeExit)
 	
@@ -1463,6 +1465,13 @@ end
 function Mappy:StoppedMoving()
 	self.IsMoving = false
 	self:AdjustAlpha()
+end
+
+function Mappy:TalentChanged()
+    -- Restore Mappy positioning
+    if Mappy.CurrentProfile.UseAddonPosition then
+        Mappy:LoadProfile(Mappy.CurrentProfile)
+    end
 end
 
 function Mappy:EditModeExit()
