@@ -339,7 +339,7 @@ function Mappy:InitializeMinimap()
 	-- Register for events
 	self.EventLib:RegisterEvent("ZONE_CHANGED", self.ZoneChanged, self)
 	self.EventLib:RegisterEvent("ZONE_CHANGED_INDOORS", self.ZoneChanged, self)
-	
+
 	self.EventLib:RegisterEvent("PLAYER_ENTERING_WORLD", self.RegenEnabled, self)
 	self.EventLib:RegisterEvent("PLAYER_REGEN_ENABLED", self.RegenEnabled, self)
 	self.EventLib:RegisterEvent("PLAYER_REGEN_DISABLED", self.RegenDisabled, self)
@@ -350,12 +350,15 @@ function Mappy:InitializeMinimap()
 
     -- Reapply addon positioning after Edit Mode exit
     hooksecurefunc(EditModeManagerFrame, "ExitEditMode", self.EditModeExit)
-	
+
+    -- Apply Edit Mode positioning on enter to avoid positioning issues
+    hooksecurefunc(EditModeManagerFrame, "EnterEditMode", self.EditModeEnter)
+
 	self:RegenEnabled()
-	
+
 	-- Schedule the configuration
 	self.SchedulerLib:ScheduleUniqueTask(0.5, self.ConfigureMinimap, self)
-	
+
 	-- Monitor the mounted state so we can determine which opacity setting to use
 	self.SchedulerLib:ScheduleUniqueRepeatingTask(0.5, self.UpdateMountedState, self)
 end
@@ -363,7 +366,7 @@ end
 function Mappy:ReparentLandmarks()
 	for vFrameIndex, vFrame in ipairs({Minimap:GetChildren()}) do
 		-- self:DebugMessage("Frame %s: Width: %s Height: %s Type: %s", vFrame:GetName() or "anonymous", vFrame:GetWidth() or "nil", vFrame:GetHeight() or "nil", vFrame:GetObjectType() or "nil")
-		
+
 		if vFrame:GetName() ~= "MinimapBackdrop" then -- Don't reparent the backdrop since we want it to fade with the map
 			vFrame:SetParent(MinimapCluster)
 		end
@@ -1477,6 +1480,13 @@ end
 function Mappy:EditModeExit()
     if Mappy.CurrentProfile.UseAddonPosition then
         Mappy:LoadProfile(Mappy.CurrentProfile)
+    end
+end
+
+function Mappy:EditModeEnter()
+    if Mappy.CurrentProfile.UseAddonPosition then
+        C_EditMode.SetActiveLayout(
+            EditModeManagerFrame.layoutInfo.activeLayout)
     end
 end
 
