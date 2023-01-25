@@ -18,7 +18,7 @@ Mappy.CoordAnchorInfo = {}
 
 Mappy.BlizzardButtonNames = {
     "GameTimeFrame",
-    MinimapCluster.MailFrame,
+    MinimapCluster.IndicatorFrame,
     MinimapCluster.Tracking,
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
@@ -32,7 +32,7 @@ Mappy.BlizzardButtonNames = {
 
 Mappy.BlizzardMinimalistButtons = {
     [GameTimeFrame] = true,
-    [MinimapCluster.MailFrame] = true,
+    [MinimapCluster.IndicatorFrame] = true,
     [MinimapCluster.Tracking] = true,
     [MinimapCluster.InstanceDifficulty] = true,
 }
@@ -538,12 +538,12 @@ function Mappy:EnlargeMinimalistButtons()
     GameTimeBG:SetSize(30,30)
 
     -- mail
-    local MailFrame = MinimapCluster.MailFrame:CreateTexture(nil, "OVERLAY")
+    local MailFrame = MinimapCluster.IndicatorFrame:CreateTexture(nil, "OVERLAY")
     MailFrame:SetTexture(136430)
     MailFrame:SetPoint("CENTER", MiniMapMailIcon, "CENTER", 10, -10)
     MailFrame:SetSize(53,53)
 
-    local MailFrameBG = MinimapCluster.MailFrame:CreateTexture(nil, "BACKGROUND")
+    local MailFrameBG = MinimapCluster.IndicatorFrame:CreateTexture(nil, "BACKGROUND")
     MailFrameBG:SetTexture(136467)
     MailFrameBG:SetPoint("CENTER", MiniMapMailIcon, "CENTER")
     MailFrameBG:SetSize(25,25)
@@ -1106,8 +1106,8 @@ function Mappy:ConfigureMinimap()
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
     end
-    if MinimapCluster.MailFrame then
-        MinimapCluster.MailFrame:ClearAllPoints()
+    if MinimapCluster.IndicatorFrame then
+        MinimapCluster.IndicatorFrame:ClearAllPoints()
     end
     if MinimapCluster.Tracking then
          MinimapCluster.Tracking:ClearAllPoints()
