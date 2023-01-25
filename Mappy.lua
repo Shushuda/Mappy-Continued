@@ -18,7 +18,8 @@ Mappy.CoordAnchorInfo = {}
 
 Mappy.BlizzardButtonNames = {
     "GameTimeFrame",
-    MinimapCluster.IndicatorFrame,
+    MinimapCluster.IndicatorFrame.MailFrame,
+    MinimapCluster.IndicatorFrame.CraftingOrderFrame,
     MinimapCluster.Tracking,
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
@@ -32,7 +33,8 @@ Mappy.BlizzardButtonNames = {
 
 Mappy.BlizzardMinimalistButtons = {
     [GameTimeFrame] = true,
-    [MinimapCluster.IndicatorFrame] = true,
+    [MinimapCluster.IndicatorFrame.MailFrame] = true,
+    [MinimapCluster.IndicatorFrame.CraftingOrderFrame] = true,
     [MinimapCluster.Tracking] = true,
     [MinimapCluster.InstanceDifficulty] = true,
 }
@@ -326,10 +328,14 @@ function Mappy:InitializeMinimap()
     MinimapCluster.BorderTop:Hide()
     Minimap.ZoomHitArea:Hide()
 
+    -- Workaround for self:GetParent():Layout() errors after 10.0.5
+    -- Minimap.lua:376
+	MinimapCluster.Layout = function() end
+
 	-- Add scroll wheel support
 	Minimap:SetScript("OnMouseWheel", function (pMinimap, pDirection) self:MinimapMouseWheel(pDirection) end)
 	Minimap:EnableMouseWheel(true)
-	
+
 	-- Add the coordinates display
 	self.CoordString = Minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	self.CoordString:SetHeight(12)
@@ -538,15 +544,26 @@ function Mappy:EnlargeMinimalistButtons()
     GameTimeBG:SetSize(30,30)
 
     -- mail
-    local MailFrame = MinimapCluster.IndicatorFrame:CreateTexture(nil, "OVERLAY")
+    local MailFrame = MinimapCluster.IndicatorFrame.MailFrame:CreateTexture(nil, "OVERLAY")
     MailFrame:SetTexture(136430)
     MailFrame:SetPoint("CENTER", MiniMapMailIcon, "CENTER", 10, -10)
     MailFrame:SetSize(53,53)
 
-    local MailFrameBG = MinimapCluster.IndicatorFrame:CreateTexture(nil, "BACKGROUND")
+    local MailFrameBG = MinimapCluster.IndicatorFrame.MailFrame:CreateTexture(nil, "BACKGROUND")
     MailFrameBG:SetTexture(136467)
     MailFrameBG:SetPoint("CENTER", MiniMapMailIcon, "CENTER")
     MailFrameBG:SetSize(25,25)
+
+    -- crafting orders
+    local CraftingOrderFrame = MinimapCluster.IndicatorFrame.CraftingOrderFrame:CreateTexture(nil, "OVERLAY")
+    CraftingOrderFrame:SetTexture(136430)
+    CraftingOrderFrame:SetPoint("CENTER", MiniMapCraftingOrderIcon, "CENTER", 10, -10)
+    CraftingOrderFrame:SetSize(53,53)
+
+    local CraftingOrderFrameBG = MinimapCluster.IndicatorFrame.CraftingOrderFrame:CreateTexture(nil, "BACKGROUND")
+    CraftingOrderFrameBG:SetTexture(136467)
+    CraftingOrderFrameBG:SetPoint("CENTER", MiniMapCraftingOrderIcon, "CENTER")
+    CraftingOrderFrameBG:SetSize(25,25)
 
     -- tracking
     local Tracking = MinimapCluster.Tracking:CreateTexture(nil, "OVERLAY")
@@ -1106,8 +1123,11 @@ function Mappy:ConfigureMinimap()
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
     end
-    if MinimapCluster.IndicatorFrame then
-        MinimapCluster.IndicatorFrame:ClearAllPoints()
+    if MinimapCluster.IndicatorFrame.MailFrame then
+        MinimapCluster.IndicatorFrame.MailFrame:ClearAllPoints()
+    end
+    if MinimapCluster.IndicatorFrame.CraftingOrderFrame then
+        MinimapCluster.IndicatorFrame.CraftingOrderFrame:ClearAllPoints()
     end
     if MinimapCluster.Tracking then
          MinimapCluster.Tracking:ClearAllPoints()
