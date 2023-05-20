@@ -2146,21 +2146,11 @@ end
 -- GatherMate support
 ----------------------------------------
 
-if GatherMate or GatherMate2 then
-	local vGatherMate = GatherMate or GatherMate2
-	
-	-- Hook the pin function to place icons on the MinimapCluster instead of the Minimap
-	
-	local vDisplay = vGatherMate:GetModule("Display")
-	local vOrigGetMiniPin = vDisplay.getMiniPin
-	vDisplay.getMiniPin = function (...)
-		local vPin = vOrigGetMiniPin(...)
-		
-		vPin:SetParent(MinimapCluster)
-		
-		return vPin
-	end
-end
+-- For some reason 10.1 made this code obsolete
+-- It used to reparent the MiniPin from Minimap to MinimapCluster
+-- But now reparenting places them behind the minimap strata (???)
+-- It works marvelously without reparenting though
+-- I'm leaving this section just in case lol
 
 ----------------------------------------
 -- MBB support
