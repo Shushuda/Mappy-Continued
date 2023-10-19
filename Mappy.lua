@@ -2355,11 +2355,21 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.SizeSlider = CreateFrame("Slider", "MappySizeSlider", self, "OptionsSliderTemplate")
 	self.SizeSlider:SetWidth(380)
 	self.SizeSlider:SetPoint("TOPLEFT", self.SizeLine, "BOTTOMLEFT", 20, -30)
-	self.SizeSlider:SetMinMaxValues(80, 1000)
-	self.SizeSlider:SetScript("OnValueChanged", function (self) Mappy:SetMinimapSize(self:GetValue()) end)
-	MappySizeSliderText:SetText("Size")
 	MappySizeSliderLow:SetText("Small")
 	MappySizeSliderHigh:SetText("Large")
+    --stepping
+    self.SizeSlider:SetMinMaxValues(80, 1000)
+    self.SizeSlider:SetValueStep(1)
+    self.SizeSlider:SetObeyStepOnDrag(true)
+    self.SizeSlider:SetStepsPerPage(1)
+    -- initial value
+    MappySizeSliderText:SetText("Size - " .. (Mappy.CurrentProfile.MinimapSize or 1))
+    -- action
+    self.SizeSlider:SetScript("OnValueChanged", function (self, value)
+        local vSize = tonumber(string.format("%.2f", value))
+        Mappy:SetMinimapSize(vSize)
+        MappySizeSliderText:SetText("Size - " .. vSize)
+    end)
 	
 	-- Alpha slider
 	
