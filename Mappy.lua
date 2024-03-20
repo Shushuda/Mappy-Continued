@@ -20,7 +20,7 @@ Mappy.BlizzardButtonNames = {
     "GameTimeFrame",
     MinimapCluster.IndicatorFrame.MailFrame,
     MinimapCluster.IndicatorFrame.CraftingOrderFrame,
-    MinimapCluster.Tracking,
+    MinimapCluster.TrackingFrame,
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
 	"MiniMapVoiceChatFrame",
@@ -35,7 +35,7 @@ Mappy.BlizzardMinimalistButtons = {
     [GameTimeFrame] = true,
     [MinimapCluster.IndicatorFrame.MailFrame] = true,
     [MinimapCluster.IndicatorFrame.CraftingOrderFrame] = true,
-    [MinimapCluster.Tracking] = true,
+    [MinimapCluster.TrackingFrame] = true,
     [MinimapCluster.InstanceDifficulty] = true,
 }
 
@@ -456,9 +456,9 @@ function Mappy:ConfigureMinimapOptions()
 	end
 	
 	if self.CurrentProfile.HideTracking then
-        MinimapCluster.Tracking:Hide()
+        MinimapCluster.TrackingFrame:Hide()
 	else
-        MinimapCluster.Tracking:Show()
+        MinimapCluster.TrackingFrame:Show()
 	end
 	
 	if self.CurrentProfile.HideTimeManagerClock then
@@ -566,14 +566,14 @@ function Mappy:EnlargeMinimalistButtons()
     CraftingOrderFrameBG:SetSize(25,25)
 
     -- tracking
-    local Tracking = MinimapCluster.Tracking:CreateTexture(nil, "OVERLAY")
+    local Tracking = MinimapCluster.TrackingFrame:CreateTexture(nil, "OVERLAY")
     Tracking:SetTexture(136430)
-    Tracking:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER", 10, -10)
+    Tracking:SetPoint("CENTER", MinimapCluster.TrackingFrame.Button, "CENTER", 10, -10)
     Tracking:SetSize(53,53)
 
-    local TrackingBG = MinimapCluster.Tracking:CreateTexture(nil, "BACKGROUND")
+    local TrackingBG = MinimapCluster.TrackingFrame:CreateTexture(nil, "BACKGROUND")
     TrackingBG:SetTexture(136467)
-    TrackingBG:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER")
+    TrackingBG:SetPoint("CENTER", MinimapCluster.TrackingFrame.Button, "CENTER")
     TrackingBG:SetSize(25,25)
 end
 
@@ -1129,8 +1129,8 @@ function Mappy:ConfigureMinimap()
     if MinimapCluster.IndicatorFrame.CraftingOrderFrame then
         MinimapCluster.IndicatorFrame.CraftingOrderFrame:ClearAllPoints()
     end
-    if MinimapCluster.Tracking then
-         MinimapCluster.Tracking:ClearAllPoints()
+    if MinimapCluster.TrackingFrame then
+         MinimapCluster.TrackingFrame:ClearAllPoints()
     end
     if MinimapCluster.InstanceDifficulty then
         MinimapCluster.InstanceDifficulty:ClearAllPoints()
@@ -1544,10 +1544,10 @@ end
 function Mappy:SetHideTracking(pHide)
 	if pHide then
 		self.CurrentProfile.HideTracking = true
-		MinimapCluster.Tracking:Hide()
+		MinimapCluster.TrackingFrame:Hide()
 	else
 		self.CurrentProfile.HideTracking = nil
-		MinimapCluster.Tracking:Show()
+		MinimapCluster.TrackingFrame:Show()
 	end
 end
 
