@@ -630,7 +630,7 @@ function Mappy:InitializeSquareShape()
 	MinimapCluster.ZoneTextButton:SetPoint("BOTTOM", Minimap, "TOP", 0, 4)
     MinimapCluster.ZoneTextButton:SetSize(180, 12)
     MinimapZoneText:SetAllPoints(MinimapCluster.ZoneTextButton)
-    MinimapZoneText:SetJustifyH("MIDDLE")
+    MinimapZoneText:SetJustifyH("CENTER")
 
     -- Move zoom buttons to the corner
 	Minimap.ZoomIn:SetPoint("TOPLEFT", 22, -2)
@@ -1093,7 +1093,7 @@ function Mappy:ConfigureMinimap()
 		TimeManagerClockButton:ClearAllPoints()
 		TimeManagerClockButton:SetPoint("CENTER", Minimap, "BOTTOM", 0, -1)
         TimeManagerClockTicker:SetAllPoints(TimeManagerClockButton)
-        TimeManagerClockTicker:SetJustifyH("MIDDLE")
+        TimeManagerClockTicker:SetJustifyH("CENTER")
         TimeManagerClockTicker:SetJustifyV("MIDDLE")
 
         if not self.TimeManagerBG then
