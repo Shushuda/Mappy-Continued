@@ -20,7 +20,7 @@ Mappy.BlizzardButtonNames = {
     "GameTimeFrame",
     MinimapCluster.IndicatorFrame.MailFrame,
     MinimapCluster.IndicatorFrame.CraftingOrderFrame,
-    MinimapCluster.TrackingFrame,
+    MinimapCluster.Tracking,
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
 	"MiniMapVoiceChatFrame",
@@ -29,14 +29,16 @@ Mappy.BlizzardButtonNames = {
 	"MiniMapLFGFrame",
 	"GuildInstanceDifficulty",
     "ExpansionLandingPageMinimapButton",
+    "AddonCompartmentFrame",
 }
 
 Mappy.BlizzardMinimalistButtons = {
     [GameTimeFrame] = true,
     [MinimapCluster.IndicatorFrame.MailFrame] = true,
     [MinimapCluster.IndicatorFrame.CraftingOrderFrame] = true,
-    [MinimapCluster.TrackingFrame] = true,
+    [MinimapCluster.Tracking] = true,
     [MinimapCluster.InstanceDifficulty] = true,
+    [AddonCompartmentFrame] = true,
 }
 
 Mappy.OtherAddonButtonNames = {
@@ -456,9 +458,9 @@ function Mappy:ConfigureMinimapOptions()
 	end
 	
 	if self.CurrentProfile.HideTracking then
-        MinimapCluster.TrackingFrame:Hide()
+        MinimapCluster.Tracking:Hide()
 	else
-        MinimapCluster.TrackingFrame:Show()
+        MinimapCluster.Tracking:Show()
 	end
 	
 	if self.CurrentProfile.HideTimeManagerClock then
@@ -566,15 +568,26 @@ function Mappy:EnlargeMinimalistButtons()
     CraftingOrderFrameBG:SetSize(25,25)
 
     -- tracking
-    local Tracking = MinimapCluster.TrackingFrame:CreateTexture(nil, "OVERLAY")
+    local Tracking = MinimapCluster.Tracking:CreateTexture(nil, "OVERLAY")
     Tracking:SetTexture(136430)
-    Tracking:SetPoint("CENTER", MinimapCluster.TrackingFrame.Button, "CENTER", 10, -10)
+    Tracking:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER", 10, -10)
     Tracking:SetSize(53,53)
 
-    local TrackingBG = MinimapCluster.TrackingFrame:CreateTexture(nil, "BACKGROUND")
+    local TrackingBG = MinimapCluster.Tracking:CreateTexture(nil, "BACKGROUND")
     TrackingBG:SetTexture(136467)
-    TrackingBG:SetPoint("CENTER", MinimapCluster.TrackingFrame.Button, "CENTER")
+    TrackingBG:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER")
     TrackingBG:SetSize(25,25)
+
+    -- addon list
+    local AddonCompartment = AddonCompartmentFrame:CreateTexture(nil, "OVERLAY")
+    AddonCompartment:SetTexture(136430)
+    AddonCompartment:SetPoint("CENTER", AddonCompartmentFrame.Text, "CENTER", 10, -10)
+    AddonCompartment:SetSize(53,53)
+
+    local AddonCompartmentBG = AddonCompartmentFrame:CreateTexture(nil, "BACKGROUND")
+    AddonCompartmentBG:SetTexture(136467)
+    AddonCompartmentBG:SetPoint("CENTER", AddonCompartmentFrame.Text, "CENTER")
+    AddonCompartmentBG:SetSize(25,25)
 end
 
 function Mappy:InitializeDragging()
@@ -744,8 +757,8 @@ function Mappy:ExecuteCommand(pCommand)
 	local	vStartIndex, vEndIndex, vCommand, vParameter = string.find(pCommand, "(%w+) ?(.*)")
 	
 	if not vCommand then
-        InterfaceOptionsFrame_OpenToCategory(self.OptionsPanel)
-        InterfaceOptionsFrame_OpenToCategory(self.OptionsPanel)
+        Settings.OpenToCategory(self.OptionsPanel.name)
+        Settings.OpenToCategory(self.OptionsPanel.name)
 		return
 	end
 	
@@ -1129,8 +1142,8 @@ function Mappy:ConfigureMinimap()
     if MinimapCluster.IndicatorFrame.CraftingOrderFrame then
         MinimapCluster.IndicatorFrame.CraftingOrderFrame:ClearAllPoints()
     end
-    if MinimapCluster.TrackingFrame then
-         MinimapCluster.TrackingFrame:ClearAllPoints()
+    if MinimapCluster.Tracking then
+         MinimapCluster.Tracking:ClearAllPoints()
     end
     if MinimapCluster.InstanceDifficulty then
         MinimapCluster.InstanceDifficulty:ClearAllPoints()
@@ -1544,10 +1557,10 @@ end
 function Mappy:SetHideTracking(pHide)
 	if pHide then
 		self.CurrentProfile.HideTracking = true
-		MinimapCluster.TrackingFrame:Hide()
+		MinimapCluster.Tracking:Hide()
 	else
 		self.CurrentProfile.HideTracking = nil
-		MinimapCluster.TrackingFrame:Show()
+		MinimapCluster.Tracking:Show()
 	end
 end
 
@@ -2317,14 +2330,22 @@ Mappy._OptionsPanel = {}
 ----------------------------------------
 
 function Mappy._OptionsPanel:New(pParent)
-	return CreateFrame("Frame", nil, pParent)
+    local frame = CreateFrame("Frame", nil, pParent)
+
+    frame.OnCommit = frame.okay
+	frame.OnDefault = frame.default
+	frame.OnRefresh = frame.refresh
+
+    return frame
 end
 
 function Mappy._OptionsPanel:Construct(pParent)
 	self:Hide()
-	
+
 	self.name = "Mappy Continued"
-	InterfaceOptions_AddCategory(self)
+    local category, layout = Settings.RegisterCanvasLayoutCategory(self, self.name, self.name)
+    category.ID = self.name
+    Settings.RegisterAddOnCategory(category)
 
     --------------------------------
     -- title header
@@ -2571,16 +2592,24 @@ Mappy._ButtonOptionsPanel = {}
 ----------------------------------------
 
 function Mappy._ButtonOptionsPanel:New(pParent)
-	return CreateFrame("Frame", nil, pParent)
+    local frame = CreateFrame("Frame", nil, pParent)
+
+    frame.OnCommit = frame.okay
+    frame.OnDefault = frame.default
+    frame.OnRefresh = frame.refresh
+
+    return frame
 end
 
 function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self:Hide()
-	
+
 	self.name = "Buttons"
 	self.parent = "Mappy Continued"
-	
-	InterfaceOptions_AddCategory(self)
+
+    local category = Settings.GetCategory(self.parent)
+    local subcategory, layout = Settings.RegisterCanvasLayoutSubcategory(category, self, self.name, self.name)
+    subcategory.ID = self.name
 
     --------------------------------
     -- title header
@@ -2710,16 +2739,24 @@ Mappy._ProfilesPanel = {}
 ----------------------------------------
 
 function Mappy._ProfilesPanel:New(pParent)
-	return CreateFrame("Frame", nil, pParent)
+    local frame = CreateFrame("Frame", nil, pParent)
+
+    frame.OnCommit = frame.okay
+    frame.OnDefault = frame.default
+    frame.OnRefresh = frame.refresh
+
+    return frame
 end
 
 function Mappy._ProfilesPanel:Construct(pParent)
 	self:Hide()
-	
+
 	self.name = "Profiles"
 	self.parent = "Mappy Continued"
-	
-	InterfaceOptions_AddCategory(self)
+
+    local category = Settings.GetCategory(self.parent)
+    local subcategory, layout = Settings.RegisterCanvasLayoutSubcategory(category, self, self.name, self.name)
+    subcategory.ID = self.name
 
     --------------------------------
     -- title header
