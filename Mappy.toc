@@ -1,8 +1,8 @@
-## Interface: 100207
+## Interface: 110000
 ## Notes: Minimap enhancements
 ## Title: Mappy Continued
 ## Author: John Stephen, LynchburgJack, Shushuda
-## Version: 4.5.14
+## Version: 4.6.0
 ## SavedVariables: gMappy_Settings
 ## OptionalDeps: Gatherer, GatherMate, GatherMate2, MBB
 
