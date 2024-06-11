@@ -1159,11 +1159,10 @@ function Mappy:ConfigureMinimap()
 
         -- handle special case (avoid showing empty box)
         if vButton == MinimapCluster.InstanceDifficulty then
-            local _, instanceType, difficulty, _, _, playerD_, _, _, _ = GetInstanceInfo();
-            local _, _, isHeroic, isChallengeMode, displayHeroic, displayMythic = GetDifficultyInfo(difficulty);
+            local _, instanceType, difficulty, _, _, playerD_, _, _, _ = GetInstanceInfo()
 
-            if not ( isChallengeMode or instanceType == "raid"
-            or isHeroic or displayMythic or displayHeroic ) then
+            if not difficulty or not ( instanceType == "raid"
+            or instanceType == "party" or instanceType == "scenario" ) then
                 vButton = nil
             end
         end
