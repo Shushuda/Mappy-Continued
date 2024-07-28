@@ -272,6 +272,7 @@ function Mappy:InitializeSettings()
 				RotateMinimap = GetCVar("rotateMinimap") == "1",
 				HideBorder = false,
 				HideTracking = false,
+                HideAddonCompartment = false,
 				HideTimeManagerClock = false,
 				FlashGatherNodes = false,
                 NormalGatherNodes = true, -- use large icons
@@ -299,6 +300,7 @@ function Mappy:InitializeSettings()
 				RotateMinimap = true,
 				HideBorder = true,
 				HideTracking = false,
+                HideAddonCompartment = false,
 				HideTimeManagerClock = false,
 				FlashGatherNodes = true,
                 NormalGatherNodes = false, -- use large icons
@@ -456,13 +458,19 @@ function Mappy:ConfigureMinimapOptions()
 	else
         MinimapCluster.ZoneTextButton:Show()
 	end
-	
+
 	if self.CurrentProfile.HideTracking then
         MinimapCluster.Tracking:Hide()
 	else
         MinimapCluster.Tracking:Show()
 	end
-	
+
+    if self.CurrentProfile.HideAddonCompartment then
+        AddonCompartmentFrame:Hide()
+    else
+        AddonCompartmentFrame:Show()
+    end
+
 	if self.CurrentProfile.HideTimeManagerClock then
 		if TimeManagerClockButton then
 			TimeManagerClockButton:Hide()
@@ -472,13 +480,13 @@ function Mappy:ConfigureMinimapOptions()
 			TimeManagerClockButton:Show()
 		end
 	end
-	
+
 	if self.CurrentProfile.GhostMinimap then
 		self:GhostMinimap()
 	else
 		self:UnghostMinimap()
 	end
-	
+
 	if self.CurrentProfile.NormalGatherNodes then
         if self.CurrentProfile.OldGatherNodes then
             self.ObjectIconsNormalPath = self.ObjectIconsNormalOldPath
@@ -578,7 +586,7 @@ function Mappy:EnlargeMinimalistButtons()
     TrackingBG:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER")
     TrackingBG:SetSize(25,25)
 
-    -- addon list
+    -- addon compartment
     local AddonCompartment = AddonCompartmentFrame:CreateTexture(nil, "OVERLAY")
     AddonCompartment:SetTexture(136430)
     AddonCompartment:SetPoint("CENTER", AddonCompartmentFrame.Text, "CENTER", 10, -10)
@@ -1145,6 +1153,9 @@ function Mappy:ConfigureMinimap()
     if MinimapCluster.Tracking then
          MinimapCluster.Tracking:ClearAllPoints()
     end
+    if AddonCompartment then
+        AddonCompartment:ClearAllPoints()
+    end
     if MinimapCluster.InstanceDifficulty then
         MinimapCluster.InstanceDifficulty:ClearAllPoints()
     end
@@ -1561,6 +1572,16 @@ function Mappy:SetHideTracking(pHide)
 		self.CurrentProfile.HideTracking = nil
 		MinimapCluster.Tracking:Show()
 	end
+end
+
+function Mappy:SetHideAddonCompartment(pHide)
+    if pHide then
+        self.CurrentProfile.HideAddonCompartment = true
+        AddonCompartmentFrame:Hide()
+    else
+        self.CurrentProfile.HideAddonCompartment = nil
+        AddonCompartmentFrame:Show()
+    end
 end
 
 function Mappy:SetHideTimeManagerClock(pHide)
@@ -2641,18 +2662,25 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	MappyHideTimeOfDayCheckbuttonText:SetText("Hide calendar button")
 
 	-- Hide Tracking Icon
-	
+
 	self.HideMiniMapTrackingCheckbutton = CreateFrame("CheckButton", "MappyHideMiniMapTrackingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideMiniMapTrackingCheckbutton:SetPoint("TOPLEFT", self.HideTimeOfDayCheckbutton, "TOPLEFT", 0, -25)
 	self.HideMiniMapTrackingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTracking(self:GetChecked()) end)
 	MappyHideMiniMapTrackingCheckbuttonText:SetText("Hide Tracking icon")
-	
+
 	-- Hide Time Manager Clock
-	
+
 	self.HideTimeManagerClockCheckbutton = CreateFrame("CheckButton", "MappyHideTimeManagerClockCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideTimeManagerClockCheckbutton:SetPoint("TOPLEFT", self.HideMiniMapTrackingCheckbutton, "TOPLEFT", 0, -25)
 	self.HideTimeManagerClockCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeManagerClock(self:GetChecked()) end)
 	MappyHideTimeManagerClockCheckbuttonText:SetText("Hide clock")
+
+    -- Hide Addon Compartment Icon
+
+    self.HideAddonCompartmentCheckbutton = CreateFrame("CheckButton", "MappyHideAddonCompartmentCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.HideAddonCompartmentCheckbutton:SetPoint("TOPLEFT", self.HideTimeManagerClockCheckbutton, "TOPLEFT", 0, -25)
+    self.HideAddonCompartmentCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideAddonCompartment(self:GetChecked()) end)
+    MappyHideAddonCompartmentCheckbuttonText:SetText("Hide Addon Compartment icon")
 
     --------------------------------
     -- stacking header
@@ -2719,6 +2747,7 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	self.HideTimeOfDayCheckbutton:SetChecked(Mappy.CurrentProfile.HideTimeOfDay)
 	self.HideMiniMapTrackingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTracking)
 	self.HideTimeManagerClockCheckbutton:SetChecked(Mappy.CurrentProfile.HideTimeManagerClock)
+    self.HideAddonCompartmentCheckbutton:SetChecked(Mappy.CurrentProfile.HideAddonCompartment)
 	self.AutoStackCheckbutton:SetChecked(Mappy.CurrentProfile.AutoArrangeButtons)
 	self.TopLeftCheckbutton:SetChecked(Mappy.CurrentProfile.StartingCorner == "TOPLEFT")
 	self.TopRightCheckbutton:SetChecked(not Mappy.CurrentProfile.StartingCorner or Mappy.CurrentProfile.StartingCorner == "TOPRIGHT")
