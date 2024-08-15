@@ -269,7 +269,6 @@ function Mappy:InitializeSettings()
 				GhostMinimap = false,
 				AutoArrangeButtons = true,
 				StackToScreen = false,
-				RotateMinimap = GetCVar("rotateMinimap") == "1",
 				HideBorder = false,
 				HideTracking = false,
                 HideAddonCompartment = false,
@@ -297,7 +296,6 @@ function Mappy:InitializeSettings()
 				GhostMinimap = true,
 				AutoArrangeButtons = true,
 				StackToScreen = true,
-				RotateMinimap = true,
 				HideBorder = true,
 				HideTracking = false,
                 HideAddonCompartment = false,
@@ -1161,11 +1159,11 @@ function Mappy:ConfigureMinimap()
     end
 
 	-- Stack all the known buttons
-	
+
 	self:BeginStackingButtons()
 
 	local	vButton
-	
+
 	for _, vNextButton in pairs(self.MinimapButtons) do
 
         -- handle special case (avoid showing empty box)
@@ -1182,25 +1180,16 @@ function Mappy:ConfigureMinimap()
 			if vButton and vButton:IsVisible() then
 				self:StackButton(vButton, vNextButton)
 			end
-			
+
 			vButton = vNextButton
 		end
 	end
-	
+
 	if vButton and vButton:IsVisible() then
 		self:StackButton(vButton, nil)
 	end
-	
+
 	self:AdjustAlpha()
-	
-	-- Update the rotation
-	if self.CurrentProfile.RotateMinimap ~= nil then
-		if self.CurrentProfile.RotateMinimap then
-			SetCVar("rotateMinimap", "1")
-		else
-			SetCVar("rotateMinimap", "0")
-		end
-	end
 end
 
 function Mappy:GetUIObjectDescription(pUIObject)
@@ -2033,10 +2022,6 @@ function Mappy.SetFrameLevel(pFrame, pLevel)
 		if vNewChildLevel < 1 then vNewChildLevel = 1 end
 		Mappy.SetFrameLevel(vChildFrame, vNewChildLevel)
 	end
-end
-
-function Mappy:Minimap_UpdateRotationSetting()
-	self.CurrentProfile.RotateMinimap = GetCVar("rotateMinimap") == "1"
 end
 
 ----------------------------------------
