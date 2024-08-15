@@ -1318,30 +1318,18 @@ end
 
 function Mappy:IsDruidTravelForm()
 	local _, vClassID = UnitClass("player")
-	
+
 	if vClassID ~= "DRUID" then
 		return false
 	end
-	
-	local vIndex = 1
-	
-	while true do
-		local vName, vRank, vIcon, vCount, vDebuffType,
-			  vDuration, vExpirationTime, vUnitCaster,
-			  vIsStealable, vShouldConsolidate, vSpellID = UnitAura("player", vIndex, "HELPFUL")
-		
-		if not vName then
-			return false
-		end
-		
-		if vSpellID == 33943
-		or vSpellID == 40120
-		or vSpellID == 783 then
-			return true
-		end
-		
-		vIndex = vIndex + 1
-	end
+
+    local vIndex = GetShapeshiftForm()
+
+    if vIndex == 3 then
+        return true
+    end
+
+    return false
 end
 
 function Mappy:ShouldForceMapToOpaque()
@@ -1350,7 +1338,7 @@ end
 
 function Mappy:GetInstanceType()
 	local _, instanceType, _, _, _, _, _, instanceMapID = GetInstanceInfo()
-	
+
 	-- Remap the Garrison instance to an outdoor type
 	if instanceMapID == 1159 then
 		instanceType = nil
