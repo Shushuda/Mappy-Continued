@@ -1168,11 +1168,17 @@ function Mappy:ConfigureMinimap()
 
         -- handle special case (avoid showing empty box)
         if vButton == MinimapCluster.InstanceDifficulty then
-            local _, instanceType, difficulty, _, _, playerD_, _, _, _ = GetInstanceInfo()
+            local _, instanceType, difficulty, _, _, _, _, _, _ = GetInstanceInfo()
 
             if not difficulty or not ( instanceType == "raid"
             or instanceType == "party" or instanceType == "scenario" ) then
+                -- hide unclickable invisible button
+                vButton:Hide()
+
                 vButton = nil
+            else
+                -- instance content, show button
+                vButton:Show()
             end
         end
 
