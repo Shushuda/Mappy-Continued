@@ -10,6 +10,9 @@ gMappy_Settings = nil
 -- MBB compatibility
 Mappy.MBBenabled = nil
 
+-- FarmHud compatibility
+Mappy.FarmHudEnabled = nil
+
 Mappy.enableBlips = true
 
 Mappy.StackingInfo = {}
@@ -479,11 +482,11 @@ function Mappy:ConfigureMinimapOptions()
 		end
 	end
 
-	if self.CurrentProfile.GhostMinimap then
-		self:GhostMinimap()
-	else
-		self:UnghostMinimap()
-	end
+    if self.CurrentProfile.GhostMinimap then
+        self:GhostMinimap()
+    else
+        self:UnghostMinimap()
+    end
 
 	if self.CurrentProfile.NormalGatherNodes then
         if self.CurrentProfile.OldGatherNodes then
@@ -673,24 +676,28 @@ end
 
 function Mappy:GhostMinimap()
 	self.CurrentProfile.GhostMinimap = true
-	
-	Minimap:RegisterForDrag()
-	Minimap:EnableMouse(false)
-	
-	MinimapCluster:RegisterForDrag()
-	MinimapCluster:EnableMouse(false)
-	
-	Minimap:EnableMouseWheel(false)
+
+    if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
+	    Minimap:RegisterForDrag()
+	    Minimap:EnableMouse(false)
+
+	    MinimapCluster:RegisterForDrag()
+	    MinimapCluster:EnableMouse(false)
+
+	    Minimap:EnableMouseWheel(false)
+    end
 end
 
 function Mappy:UnghostMinimap()
 	self.CurrentProfile.GhostMinimap = false
-	
-	Minimap:RegisterForDrag("LeftButton")
-	Minimap:EnableMouse(true)
 
-	Minimap:SetScript("OnMouseWheel", function (self, direction) Mappy:MinimapMouseWheel(direction) end)
-	Minimap:EnableMouseWheel(true)
+    if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
+        Minimap:RegisterForDrag("LeftButton")
+        Minimap:EnableMouse(true)
+
+        Minimap:SetScript("OnMouseWheel", function (self, direction) Mappy:MinimapMouseWheel(direction) end)
+        Minimap:EnableMouseWheel(true)
+    end
 end
 
 function Mappy:SaveProfile(pName)
@@ -873,7 +880,11 @@ function Mappy:BeginStackingButtons()
 			self.StackingInfo.StackingInsetY = 24
 		end
 	else
-		self.StackingInfo.StackingParent = Minimap
+        if Mappy.FarmHudEnabled and FarmHud:IsVisible() then
+            self.StackingInfo.StackingParent = FarmHudMinimapDummy
+        else
+		    self.StackingInfo.StackingParent = Minimap
+        end
 		self.StackingInfo.StackingInsetX = 0
 		self.StackingInfo.StackingInsetY = 0
 	end
@@ -1094,20 +1105,24 @@ function Mappy:ConfigureMinimap()
             EditModeManagerFrame.layoutInfo.activeLayout)
     end
 
-	Minimap:SetWidth(self.CurrentProfile.MinimapSize)
-	Minimap:SetHeight(self.CurrentProfile.MinimapSize)
-	
+    if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
+	    Minimap:SetWidth(self.CurrentProfile.MinimapSize)
+	    Minimap:SetHeight(self.CurrentProfile.MinimapSize)
+    end
+
 	MinimapCluster:SetWidth(self.CurrentProfile.MinimapSize)
 	MinimapCluster:SetHeight(self.CurrentProfile.MinimapSize)
-	
+
 	for vMapArrow, _ in pairs(self.LandmarkArrows) do
 		vMapArrow.Mappy.SetWidth(vMapArrow, self.CurrentProfile.MinimapSize * 1.1)
 		vMapArrow.Mappy.SetHeight(vMapArrow, self.CurrentProfile.MinimapSize * 1.1)
 	end
-	
-	Minimap:SetScale(1.001) -- Poke the scaling to force a refresh of the minimap size
-	Minimap:SetScale(1)
-	
+
+    if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
+	    Minimap:SetScale(1.001) -- Poke the scaling to force a refresh of the minimap size
+	    Minimap:SetScale(1)
+    end
+
 	if TimeManagerClockButton then
 		TimeManagerClockButton:ClearAllPoints()
 		TimeManagerClockButton:SetPoint("CENTER", Minimap, "BOTTOM", 0, -1)
@@ -2170,6 +2185,14 @@ end
 
 if MBBFrame then
     Mappy.MBBenabled = true
+end
+
+----------------------------------------
+-- FarmHud support
+----------------------------------------
+
+if FarmHud then
+    Mappy.FarmHudEnabled = true
 end
 
 ----------------------------------------
