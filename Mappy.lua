@@ -161,7 +161,7 @@ Mappy.CornerInfoCCW = {
 		IsVert = true,
         OffsetPositive = true,
 	},
-	
+
 	BOTTOMLEFT = {
 		NextCorner = "BOTTOMRIGHT",
 		AnchorPoint = "LEFT",
@@ -174,7 +174,7 @@ Mappy.CornerInfoCCW = {
 		IsVert = false,
         OffsetPositive = true,
 	},
-	
+
 	TOPLEFT = {
 		NextCorner = "BOTTOMLEFT",
 		AnchorPoint = "TOP",
@@ -770,8 +770,7 @@ function Mappy:ExecuteCommand(pCommand)
 	local	vStartIndex, vEndIndex, vCommand, vParameter = string.find(pCommand, "(%w+) ?(.*)")
 	
 	if not vCommand then
-        Settings.OpenToCategory(self.OptionsPanel.name)
-        Settings.OpenToCategory(self.OptionsPanel.name)
+        Settings.OpenToCategory(self.name)
 		return
 	end
 	
