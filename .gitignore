@@ -1,4 +1,9 @@
 .DS_Store
 
+# IDE
+.idea
+.vscode
+Mappy-Continued.code-workspace
+
 # WoW UI source (documentation reference only)
 wow-ui-source/
