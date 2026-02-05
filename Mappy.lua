@@ -628,16 +628,27 @@ end
 function Mappy:InitializeSquareShape()
 	Minimap:SetMaskTexture("Interface\\Addons\\Mappy\\Textures\\MinimapMask")
     MinimapCompassTexture:SetTexture(nil)
-	
+
 	-- 10/14/2020 - Updated code to use the new Backdrop templates -LynchburgJack
 	MinimapBackdrop = CreateFrame("Frame", "Backdrop", MinimapBackdrop, BackdropTemplateMixin and "BackdropTemplate")
+
+	-- Transfer StaticOverlayTexture from the original MinimapBackdrop
+	-- Hide it since it's circular (make a custom square one some day?)
+	local vStaticOverlay = MinimapBackdrop:GetParent().StaticOverlayTexture
+	if vStaticOverlay then
+		vStaticOverlay:SetParent(MinimapBackdrop)
+		vStaticOverlay:Hide()
+		vStaticOverlay.SetShown = function() end
+		MinimapBackdrop.StaticOverlayTexture = vStaticOverlay
+	end
+
 	MinimapBackdrop.backdropInfo = {
 		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
 		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 		tile = true, tileSize = 16, edgeSize = 16,
 		insets = {left = 3, right = 3, top = 3, bottom = 3},
 	}
-	
+
 	MinimapBackdrop:SetBackdrop(MinimapBackdrop.backdropInfo)
 	MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 1.0)
 	MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
