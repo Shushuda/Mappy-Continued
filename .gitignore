@@ -5,5 +5,8 @@
 .vscode
 Mappy-Continued.code-workspace
 
+# Claude Code
+.claude/
+
 # WoW UI source (documentation reference only)
 wow-ui-source/
