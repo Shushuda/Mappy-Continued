@@ -633,12 +633,16 @@ function Mappy:InitializeSquareShape()
 	MinimapBackdrop = CreateFrame("Frame", "Backdrop", MinimapBackdrop, BackdropTemplateMixin and "BackdropTemplate")
 
 	-- Transfer StaticOverlayTexture from the original MinimapBackdrop
-	-- Hide it since it's circular (make a custom square one some day?)
+	-- Use custom square texture instead of Blizzard's circular one
 	local vStaticOverlay = MinimapBackdrop:GetParent().StaticOverlayTexture
 	if vStaticOverlay then
 		vStaticOverlay:SetParent(MinimapBackdrop)
-		vStaticOverlay:Hide()
-		vStaticOverlay.SetShown = function() end
+		vStaticOverlay:ClearAllPoints()
+		vStaticOverlay:SetAllPoints(Minimap)
+		vStaticOverlay:SetDrawLayer("BACKGROUND")
+		vStaticOverlay:SetTexture("Interface\\Addons\\Mappy\\Textures\\UIHudMinimapHousingIndoorStaticBg")
+		-- Prevent overwriting with atlas area
+		vStaticOverlay.SetAtlas = function() end
 		MinimapBackdrop.StaticOverlayTexture = vStaticOverlay
 	end
 
@@ -665,9 +669,11 @@ function Mappy:InitializeSquareShape()
     MinimapZoneText:SetAllPoints(MinimapCluster.ZoneTextButton)
     MinimapZoneText:SetJustifyH("CENTER")
 
-    -- Move zoom buttons to the corner
+    -- Move zoom buttons to the corner and raise strata above the backdrop
 	Minimap.ZoomIn:SetPoint("TOPLEFT", 22, -2)
 	Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
+	Minimap.ZoomIn:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
+	Minimap.ZoomOut:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
 
 	MinimapBackdrop:ApplyBackdrop()
 end
