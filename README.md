@@ -1,12 +1,14 @@
 # Mappy-Continued
 
-A continuation of Mappy addon for World of Warcraft, originally created by [Mundocani](https://github.com/Mundocani).
+A continuation of [Mappy](https://github.com/Mundocani/Mappy) addon for World of Warcraft, originally created by [Mundocani](https://github.com/Mundocani).
+
+Compatible with Midnight!
 
 Since the original addon seems pretty much abandoned, I've decided to fork and maintain it. I love this addon too much to find a new one, so I've fixed it instead!
 
 Please bear in mind that I'm not planning on adding new features nor refactoring the code. I want to maintain the currently implemented features with as little modifications of the original codebase as possible. There will be some dirty hacks, which I might pretty-up later.
 
-What's important is that the addon is now working with **Dragonflight**!
+I _might_ add some new things if you ask for any, but it's going to be a case-by-case thing.
 
 ## Features
 
@@ -27,6 +29,34 @@ Other features include:
 * Bigger and/or blinking gathering nodes
 * Classic-style dot for gathering nodes
 * Player coordinates
+
+## Slash commands
+
+`/mappy` - Opens options in the Interface window
+
+`/mappy help` - Shows a list of available commands
+
+`/mappy default` - Loads the default profile
+
+`/mappy save settingsname` - Saves the settings under the name settingsname
+
+`/mappy load settingsname` - Loads the settings
+
+`/mappy settingsname` - Shorthand version of /mappy load
+
+`/mappy ghost` - Mouse clicks in the minimap will be passed through to the background
+
+`/mappy unghost` - Mouse clicks work as usual
+
+`/mappy corner TOPLEFT|TOPRIGHT|BOTTOMLEFT|BOTTOMRIGHT` - Sets the starting corner for button stacking
+
+`/mappy reset` - Resets all settings and profiles
+
+`/mappy unlock` - Unlocks the minimap for dragging
+
+`/mappy lock` - Locks the minimap, preventing its movement
+
+`/mappy reload` - Reload Mappy if something doesn't look right (buttons overlapping etc)
 
 ## Authors
 
