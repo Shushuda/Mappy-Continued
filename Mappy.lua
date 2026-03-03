@@ -327,11 +327,18 @@ function Mappy:InitializeMinimap()
     -- Locate the addon buttons around the minimap
 	self:FindMinimapButtons()
 
-	self:InitializeDragging()
+	-- Save method references for dragging
+	MinimapCluster.Mappy_SetPoint = MinimapCluster.SetPoint
+	MinimapCluster.Mappy_ClearAllPoints = MinimapCluster.ClearAllPoints
+	Minimap.Mappy_SetPoint = Minimap.SetPoint
+	Minimap.Mappy_ClearAllPoints = Minimap.ClearAllPoints
+
 	self:InitializeSquareShape()
 
-    MinimapCluster.BorderTop:Hide()
-    Minimap.ZoomHitArea:Hide()
+	-- Visually hide elements immediately via SetAlpha
+	-- The real Hide() calls happen in ApplyProtectedInitState when out of combat
+	MinimapCluster.BorderTop:SetAlpha(0)
+	Minimap.ZoomHitArea:SetAlpha(0)
 
     -- Workaround for self:GetParent():Layout() errors after 10.0.5
     -- Minimap.lua:376
@@ -340,6 +347,10 @@ function Mappy:InitializeMinimap()
 	-- Add scroll wheel support
 	Minimap:SetScript("OnMouseWheel", function (pMinimap, pDirection) self:MinimapMouseWheel(pDirection) end)
 	Minimap:EnableMouseWheel(true)
+
+	-- Set up drag scripts (RegisterForDrag is deferred)
+	Minimap:SetScript("OnDragStart", function() Mappy:StartMovingMinimap() end)
+	Minimap:SetScript("OnDragStop", function() Mappy:StopMovingMinimap() end)
 
 	-- Add the coordinates display
 	self.CoordString = Minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -367,11 +378,47 @@ function Mappy:InitializeMinimap()
 
 	self:RegenEnabled()
 
-	-- Schedule the configuration
+	-- Schedule the configuration (includes deferred protected-state init)
 	self.SchedulerLib:ScheduleUniqueTask(0.5, self.ConfigureMinimap, self)
 
 	-- Monitor the mounted state so we can determine which opacity setting to use
 	self.SchedulerLib:ScheduleUniqueRepeatingTask(0.5, self.UpdateMountedState, self)
+end
+
+-- Apply one-time protected operations that require out-of-combat state
+-- Called from ConfigureMinimap on first successful (non-combat) run
+function Mappy:ApplyProtectedInitState()
+	if self.ProtectedInitApplied then
+		return
+	end
+	self.ProtectedInitApplied = true
+
+	-- Hide elements
+	MinimapCluster.BorderTop:Hide()
+	Minimap.ZoomHitArea:Hide()
+
+	-- Enable dragging
+	Minimap:RegisterForDrag("LeftButton")
+
+	-- Reposition Minimap within MinimapCluster
+	Minimap:Mappy_ClearAllPoints()
+	Minimap:Mappy_SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
+
+	-- Change the backdrop to size with the map
+	MinimapBackdrop:ClearAllPoints()
+	MinimapBackdrop:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -4, 4)
+	MinimapBackdrop:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 4, -4)
+
+	-- Move the zone text to the top and make it wider
+	MinimapCluster.ZoneTextButton:ClearAllPoints()
+	MinimapCluster.ZoneTextButton:SetPoint("BOTTOM", Minimap, "TOP", 0, 4)
+	MinimapCluster.ZoneTextButton:SetSize(180, 12)
+
+	-- Move zoom buttons to the corner and raise strata above the backdrop
+	Minimap.ZoomIn:SetPoint("TOPLEFT", 22, -2)
+	Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
+	Minimap.ZoomIn:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
+	Minimap.ZoomOut:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
 end
 
 function Mappy:ReparentLandmarks()
@@ -442,6 +489,12 @@ function Mappy:RegisterMinimapButton(pButton, pAlwaysStack)
 end
 
 function Mappy:ConfigureMinimapOptions()
+	-- Show/Hide calls are protected - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
+
 	if self.CurrentProfile.AutoArrangeButtons then
 		self:EnableButtonStacking()
 	else
@@ -451,24 +504,28 @@ function Mappy:ConfigureMinimapOptions()
 	if self.CurrentProfile.HideTimeOfDay then
 		GameTimeFrame:Hide()
 	else
+		GameTimeFrame:SetAlpha(1)
 		GameTimeFrame:Show()
 	end
 
 	if self.CurrentProfile.HideZoneName then
         MinimapCluster.ZoneTextButton:Hide()
 	else
+		MinimapCluster.ZoneTextButton:SetAlpha(1)
         MinimapCluster.ZoneTextButton:Show()
 	end
 
 	if self.CurrentProfile.HideTracking then
         MinimapCluster.Tracking:Hide()
 	else
+		MinimapCluster.Tracking:SetAlpha(1)
         MinimapCluster.Tracking:Show()
 	end
 
     if self.CurrentProfile.HideAddonCompartment then
         AddonCompartmentFrame:Hide()
     else
+		AddonCompartmentFrame:SetAlpha(1)
         AddonCompartmentFrame:Show()
     end
 
@@ -478,6 +535,7 @@ function Mappy:ConfigureMinimapOptions()
 		end
 	else
 		if TimeManagerClockButton then
+			TimeManagerClockButton:SetAlpha(1)
 			TimeManagerClockButton:Show()
 		end
 	end
@@ -599,22 +657,6 @@ function Mappy:EnlargeMinimalistButtons()
     AddonCompartmentBG:SetSize(25,25)
 end
 
-function Mappy:InitializeDragging()
-    Minimap:RegisterForDrag("LeftButton")
-
-    Minimap:SetScript("OnDragStart", function() Mappy:StartMovingMinimap() end)
-    Minimap:SetScript("OnDragStop", function() Mappy:StopMovingMinimap() end)
-
-    MinimapCluster.Mappy_SetPoint = MinimapCluster.SetPoint
-    MinimapCluster.Mappy_ClearAllPoints = MinimapCluster.ClearAllPoints
-
-    Minimap.Mappy_SetPoint = Minimap.SetPoint
-    Minimap.Mappy_ClearAllPoints = Minimap.ClearAllPoints
-
-    Minimap:Mappy_ClearAllPoints()
-    Minimap:Mappy_SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
-end
-
 function Mappy:AdjustBackgroundStyle()
 	if self.CurrentProfile.HideBorder then
 				MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 0.0)
@@ -625,6 +667,8 @@ function Mappy:AdjustBackgroundStyle()
 	end
 end
 
+-- Combat-safe portion only
+-- Protected positioning ops are in ApplyProtectedInitState()
 function Mappy:InitializeSquareShape()
 	Minimap:SetMaskTexture("Interface\\Addons\\Mappy\\Textures\\MinimapMask")
     MinimapCompassTexture:SetTexture(nil)
@@ -657,23 +701,8 @@ function Mappy:InitializeSquareShape()
 	MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 1.0)
 	MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
 
-	-- Change the backdrop to size with the map
-	MinimapBackdrop:ClearAllPoints()
-	MinimapBackdrop:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -4, 4)
-	MinimapBackdrop:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 4, -4)
-
-	-- Move the zone text to the top and make it wider
-	MinimapCluster.ZoneTextButton:ClearAllPoints()
-	MinimapCluster.ZoneTextButton:SetPoint("BOTTOM", Minimap, "TOP", 0, 4)
-    MinimapCluster.ZoneTextButton:SetSize(180, 12)
     MinimapZoneText:SetAllPoints(MinimapCluster.ZoneTextButton)
     MinimapZoneText:SetJustifyH("CENTER")
-
-    -- Move zoom buttons to the corner and raise strata above the backdrop
-	Minimap.ZoomIn:SetPoint("TOPLEFT", 22, -2)
-	Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
-	Minimap.ZoomIn:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
-	Minimap.ZoomOut:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
 
 	MinimapBackdrop:ApplyBackdrop()
 end
@@ -694,6 +723,12 @@ end
 function Mappy:GhostMinimap()
 	self.CurrentProfile.GhostMinimap = true
 
+	-- Protected ops (EnableMouse, RegisterForDrag) - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
+
     if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
 	    Minimap:RegisterForDrag()
 	    Minimap:EnableMouse(false)
@@ -707,6 +742,12 @@ end
 
 function Mappy:UnghostMinimap()
 	self.CurrentProfile.GhostMinimap = false
+
+	-- Protected ops (EnableMouse, RegisterForDrag) - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
 
     if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
         Minimap:RegisterForDrag("LeftButton")
@@ -1107,6 +1148,9 @@ function Mappy:ConfigureMinimap()
     if EditModeManagerFrame:IsEditModeActive() then
         return
     end
+
+	-- Apply one-time protected init on first out-of-combat run
+	self:ApplyProtectedInitState()
 
 	self.StartingCorner = self.CurrentProfile.StartingCorner or "TOPRIGHT"
     self.CoordAnchor = self.CurrentProfile.CoordAnchor or "BOTTOMLEFT"
@@ -1581,9 +1625,19 @@ end
 function Mappy:SetHideTracking(pHide)
 	if pHide then
 		self.CurrentProfile.HideTracking = true
-		MinimapCluster.Tracking:Hide()
+		MinimapCluster.Tracking:SetAlpha(0)
 	else
 		self.CurrentProfile.HideTracking = nil
+		MinimapCluster.Tracking:SetAlpha(1)
+	end
+	-- Real Show/Hide are protected - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
+	if pHide then
+		MinimapCluster.Tracking:Hide()
+	else
 		MinimapCluster.Tracking:Show()
 	end
 end
@@ -1591,19 +1645,39 @@ end
 function Mappy:SetHideAddonCompartment(pHide)
     if pHide then
         self.CurrentProfile.HideAddonCompartment = true
-        AddonCompartmentFrame:Hide()
+        AddonCompartmentFrame:SetAlpha(0)
     else
         self.CurrentProfile.HideAddonCompartment = nil
-        AddonCompartmentFrame:Show()
+        AddonCompartmentFrame:SetAlpha(1)
     end
+	-- Real Show/Hide are protected - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
+	if pHide then
+		AddonCompartmentFrame:Hide()
+	else
+		AddonCompartmentFrame:Show()
+	end
 end
 
 function Mappy:SetHideTimeManagerClock(pHide)
 	if pHide then
 		self.CurrentProfile.HideTimeManagerClock = true
-		TimeManagerClockButton:Hide()
+		TimeManagerClockButton:SetAlpha(0)
 	else
 		self.CurrentProfile.HideTimeManagerClock = nil
+		TimeManagerClockButton:SetAlpha(1)
+	end
+	-- Real Show/Hide are protected - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
+	if pHide then
+		TimeManagerClockButton:Hide()
+	else
 		TimeManagerClockButton:Show()
 	end
 end
@@ -1611,9 +1685,19 @@ end
 function Mappy:SetHideTimeOfDay(pHide)
 	if pHide then
 		self.CurrentProfile.HideTimeOfDay = true
-		GameTimeFrame:Hide()
+		GameTimeFrame:SetAlpha(0)
 	else
 		self.CurrentProfile.HideTimeOfDay = nil
+		GameTimeFrame:SetAlpha(1)
+	end
+	-- Real Show/Hide are protected - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
+	if pHide then
+		GameTimeFrame:Hide()
+	else
 		GameTimeFrame:Show()
 	end
 end
@@ -1652,9 +1736,19 @@ end
 function Mappy:SetHideZoneName(pHide)
 	if pHide then
 		self.CurrentProfile.HideZoneName = true
-		MinimapCluster.ZoneTextButton:Hide()
+		MinimapCluster.ZoneTextButton:SetAlpha(0)
 	else
 		self.CurrentProfile.HideZoneName = nil
+		MinimapCluster.ZoneTextButton:SetAlpha(1)
+	end
+	-- Real Show/Hide are protected - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
+	if pHide then
+		MinimapCluster.ZoneTextButton:Hide()
+	else
 		MinimapCluster.ZoneTextButton:Show()
 	end
 end
@@ -1707,27 +1801,21 @@ function Mappy:SetStackToScreen(pStackToScreen)
 end
 
 function Mappy.Button_OnHide(self, ...)
-	local	vResult
-	
-	if self.Mappy_OnHide then
-		vResult = self:Mappy_OnHide(...)
+	-- Only act when stacking is active (HookScript is permanent, so use flag)
+	if not self.Mappy_StackingActive then
+		return
 	end
-	
+
 	Mappy.SchedulerLib:ScheduleUniqueTask(0, Mappy.ConfigureMinimap, Mappy)
-	
-	return vResult
 end
 
 function Mappy.Button_OnShow(self, ...)
-	local	vResult
-	
-	if self.Mappy_OnShow then
-		vResult = self:Mappy_OnShow(...)
+	-- Only act when stacking is active (HookScript is permanent, so use flag)
+	if not self.Mappy_StackingActive then
+		return
 	end
-	
+
 	Mappy.SchedulerLib:ScheduleUniqueTask(0, Mappy.ConfigureMinimap, Mappy)
-	
-	return vResult
 end
 
 ----------------------------------------
@@ -1741,25 +1829,28 @@ function Mappy._MinimapButton:Mappy_SetStackingEnabled(pEnable)
 			
 			self.Mappy_SetPoint = self.SetPoint
 			self.Mappy_ClearAllPoints = self.ClearAllPoints
-			self.Mappy_OnHide = self:GetScript("OnHide")
-			self.Mappy_OnShow = self:GetScript("OnShow")
 			
 			self.SetPoint = self.Mappy_SaveSetPoint
 			self.ClearAllPoints = self.Mappy_SaveClearAllPoints
-			self:SetScript("OnHide", Mappy.Button_OnHide)
-			self:SetScript("OnShow", Mappy.Button_OnShow)
+
+			-- Use HookScript instead of SetScript to avoid tainting
+			-- Blizzard button script chains (hook is permanent, controlled by flag)
+			if not self.Mappy_HooksInstalled then
+				self:HookScript("OnHide", Mappy.Button_OnHide)
+				self:HookScript("OnShow", Mappy.Button_OnShow)
+				self.Mappy_HooksInstalled = true
+			end
 		end
+		self.Mappy_StackingActive = true
 	else
 		if self.Mappy_SetPoint and not self.Mappy_AlwaysStack then
 			self.SetPoint = self.Mappy_SetPoint
 			self.ClearAllPoints = self.Mappy_ClearAllPoints
-			self:SetScript("OnHide", self.Mappy_OnHide)
-			self:SetScript("OnShow", self.Mappy_OnShow)
 			
 			self.Mappy_SetPoint = nil
 			self.Mappy_ClearAllPoints = nil
-			self.Mappy_OnHide = nil
-			self.Mappy_OnShow = nil
+			-- HookScript hooks are permanent, so just disable via flag
+			self.Mappy_StackingActive = false
 			
 			self:Mappy_RestoreAnchors()
 		end
@@ -1844,6 +1935,10 @@ function Mappy:StartMovingMinimap()
 		return
 	end
 
+	if InCombatLockdown() then
+		return
+	end
+
 	-- Enable moving
     MinimapCluster:SetMovable(true)
     MinimapCluster:SetUserPlaced(true)
@@ -1855,6 +1950,10 @@ end
 function Mappy:StopMovingMinimap()
 	if self.CurrentProfile.LockPosition
     or not self.CurrentProfile.UseAddonPosition then
+		return
+	end
+
+	if InCombatLockdown() then
 		return
 	end
 
@@ -2176,9 +2275,11 @@ and Gatherer.MiniNotes.UpdateMinimapNotes then
 	function Gatherer.MiniNotes.UpdateMinimapNotes(...)
 		local vResult = {Gatherer.MiniNotes.Mappy_UpdateMinimapNotes(...)}
 		
-		for _, vGatherNote in ipairs(Gatherer.MiniNotes.Notes) do
-			vGatherNote:SetParent(MinimapCluster)
-			vGatherNote:SetFrameLevel(MinimapCluster:GetFrameLevel() + 5)
+		if not InCombatLockdown() then
+			for _, vGatherNote in ipairs(Gatherer.MiniNotes.Notes) do
+				vGatherNote:SetParent(MinimapCluster)
+				vGatherNote:SetFrameLevel(MinimapCluster:GetFrameLevel() + 5)
+			end
 		end
 		
 		return unpack(vResult)
