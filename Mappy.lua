@@ -248,6 +248,9 @@ function Mappy:AddonLoaded(pEventID, pAddonName)
 	
 	SlashCmdList.MAPPY = function (...) Mappy:ExecuteCommand(...) end
 	SLASH_MAPPY1 = "/mappy"
+
+	-- Unregister to avoid firing for every load-on-demand addon
+	self.EventLib:UnregisterEvent("ADDON_LOADED", self.AddonLoaded, self)
 end
 
 function Mappy:InitializeSettings()
@@ -1486,7 +1489,7 @@ function Mappy:UpdateCoords()
     if map then
         local position = C_Map.GetPlayerMapPosition(map, "player")
         if position then
-            vX, vY = position:GetXY()
+            local vX, vY = position:GetXY()
             self.CoordString:SetText(string.format("%.1f, %.1f", vX * 100, vY * 100))
         else
             self.CoordString:SetText("")
@@ -2148,7 +2151,12 @@ end
 function Mappy.SetFrameLevel(pFrame, pLevel)
 	local vOldLevel = pFrame:GetFrameLevel()
 	local vLevelOffset = pLevel - vOldLevel
-	
+
+	-- Skip when level hasn't changed (avoids recursive traversal of children)
+	if vLevelOffset == 0 then
+		return
+	end
+
 	pFrame:SetFrameLevel(pLevel)
 	
 	local	vChildren = {pFrame:GetChildren()}
