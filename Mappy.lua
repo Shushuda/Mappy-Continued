@@ -1342,8 +1342,12 @@ function Mappy:IsAnchoredToFrame(pFrame, pAnchoredTo)
 	local	vNumPoints = pFrame:GetNumPoints()
 
 	for vPointIndex = 1, vNumPoints do
-		local vPoint, vRelativeTo, vRelativePoint, vXOffset, vYOffset = pFrame:GetPoint(vPointIndex)
+		local vOk, vPoint, vRelativeTo, vRelativePoint, vXOffset, vYOffset = pcall(pFrame.GetPoint, pFrame, vPointIndex)
 		
+		if not vOk then
+			return false
+		end
+
 		if vRelativeTo == pAnchoredTo then
 			return true
 		end
