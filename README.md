@@ -60,9 +60,10 @@ Other features include:
 
 ## Authors
 
-* [Mundocani](https://github.com/Mundocani) (original author)
+* [Mundocani](https://github.com/Mundocani) (original author of Mappy)
 * [LynchburgJack](https://github.com/LynchburgJack) (maintainer of [Mappy-Shadowlands](https://github.com/LynchburgJack/Mappy-Shadowlands) fork)
 * [Shushuda](https://github.com/Shushuda) (maintainer of this fork - [Mappy-Continued](https://github.com/Shushuda/Mappy-Continued))
+* [wealdly](https://github.com/wealdly) (bugfixes and performance improvements)
 
 ## License
 
