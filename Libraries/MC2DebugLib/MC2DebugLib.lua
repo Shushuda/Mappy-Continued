@@ -23,20 +23,6 @@ function Addon.DebugLib:Initialize()
 	
 	self.Initialized = true
 	
-	-- ChatFrame_ConfigEventHandler was removed in 12.0. Guard the hook so the
-	-- missing global doesn't hard-error on the first debug/note/error message
-	-- (which would break /mappy help and all in-chat feedback).
-	if type(ChatFrame_ConfigEventHandler) == "function" then
-		hooksecurefunc(
-				"ChatFrame_ConfigEventHandler",
-				function (event)
-					if event == "UPDATE_CHAT_WINDOWS"
-					and not self.DebugFrame then
-						self:FindDebugFrame()
-					end
-				end)
-	end
-
 	self:FindDebugFrame()
 end
 
