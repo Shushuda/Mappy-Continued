@@ -64,6 +64,7 @@ Other features include:
 * [LynchburgJack](https://github.com/LynchburgJack) (maintainer of [Mappy-Shadowlands](https://github.com/LynchburgJack/Mappy-Shadowlands) fork)
 * [Shushuda](https://github.com/Shushuda) (maintainer of this fork - [Mappy-Continued](https://github.com/Shushuda/Mappy-Continued))
 * [wealdly](https://github.com/wealdly) (bugfixes and performance improvements)
+* [Little-Bunny-FuFu](https://github.com/Little-Bunny-FuFu) (bugfixes)
 
 ## License
 
