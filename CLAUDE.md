@@ -79,6 +79,10 @@ Minimap frames are protected by Blizzard. The addon checks `CanChangeProtectedSt
 
 The `wow-ui-source/` directory contains the latest WoW UI source code mirrored from Blizzard. This is **documentation only** - use it as a reference for WoW's Lua API, frame templates, and UI patterns. Do not modify files in this directory or treat them as part of this addon project.
 
+**Before modifying any WoW API call**, verify the replacement against:
+1. `wow-ui-source/Interface/AddOns/Blizzard_Deprecated/` for transition guides
+2. `wow-ui-source/` for usage examples in Blizzard's own code
+
 ## Web Resources
 
 For WoW API lookups, prefer `wow-ui-source/` for source code reference. For wiki documentation, restrict web searches to `warcraft.wiki.gg`.
