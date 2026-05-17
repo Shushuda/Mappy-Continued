@@ -831,7 +831,9 @@ function Mappy:ExecuteCommand(pCommand)
 	local	vStartIndex, vEndIndex, vCommand, vParameter = string.find(pCommand, "(%w+) ?(.*)")
 	
 	if not vCommand then
-        Settings.OpenToCategory(self.name)
+        if Mappy.SettingsCategory then
+            Settings.OpenToCategory(Mappy.SettingsCategory:GetID())
+        end
 		return
 	end
 	
@@ -846,7 +848,23 @@ function Mappy:ExecuteCommand(pCommand)
 		gMappy_Settings.CurrentProfileName = vCommand
 		self:LoadProfile(gMappy_Settings.Profiles[vCommand])
 	else
-		self:ErrorMessage("Expected command")
+		-- Also accept a profile's display name (ProfileNameMap), so
+		-- "/mappy normal" works as well as "/mappy default" (key DEFAULT).
+		local vMatchedKey
+		for vKey, vDisplay in pairs(self.ProfileNameMap) do
+			if type(vDisplay) == "string" and vDisplay:lower() == vCommand
+			and gMappy_Settings.Profiles[vKey] then
+				vMatchedKey = vKey
+				break
+			end
+		end
+
+		if vMatchedKey then
+			gMappy_Settings.CurrentProfileName = vMatchedKey
+			self:LoadProfile(gMappy_Settings.Profiles[vMatchedKey])
+		else
+			self:ErrorMessage("Expected command")
+		end
 	end
 end
 
@@ -912,11 +930,11 @@ function Mappy:corner(pParameter)
 end
 
 function Mappy:cw(pParameter)
-	self:SetCCW(false)
+	self:SetCounterClockwise(false)
 end
 
 function Mappy:ccw(pParameter)
-	self:SetCCW(true)
+	self:SetCounterClockwise(true)
 end
 
 function Mappy:reset(pParameter)
@@ -2495,8 +2513,8 @@ function Mappy._OptionsPanel:Construct(pParent)
 
 	self.name = "Mappy Continued"
     local category, layout = Settings.RegisterCanvasLayoutCategory(self, self.name, self.name)
-    category.ID = self.name
     Settings.RegisterAddOnCategory(category)
+    Mappy.SettingsCategory = category
 
     --------------------------------
     -- title header
@@ -2758,7 +2776,7 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.name = "Buttons"
 	self.parent = "Mappy Continued"
 
-    local category = Settings.GetCategory(self.parent)
+    local category = Mappy.SettingsCategory
     local subcategory, layout = Settings.RegisterCanvasLayoutSubcategory(category, self, self.name, self.name)
     subcategory.ID = self.name
 
@@ -2913,7 +2931,7 @@ function Mappy._ProfilesPanel:Construct(pParent)
 	self.name = "Profiles"
 	self.parent = "Mappy Continued"
 
-    local category = Settings.GetCategory(self.parent)
+    local category = Mappy.SettingsCategory
     local subcategory, layout = Settings.RegisterCanvasLayoutSubcategory(category, self, self.name, self.name)
     subcategory.ID = self.name
 
