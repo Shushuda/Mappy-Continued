@@ -1,4 +1,4 @@
-## Interface: 120007
+## Interface: 120100
 ## Notes: Minimap enhancements
 ## Title: Mappy Continued
 ## Author: John Stephen, LynchburgJack, Shushuda, wealdly, Little-Bunny-FuFu
