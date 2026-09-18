@@ -2,7 +2,7 @@
 
 A continuation of [Mappy](https://github.com/Mundocani/Mappy) addon for World of Warcraft, originally created by [Mundocani](https://github.com/Mundocani).
 
-Compatible with Midnight!
+Compatible with Midnight and Forever!
 
 Since the original addon seems pretty much abandoned, I've decided to fork and maintain it. I love this addon too much to find a new one, so I've fixed it instead!
 
