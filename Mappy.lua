@@ -360,6 +360,11 @@ function Mappy:InitializeMinimap()
 	self.CoordString = Minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	self.CoordString:SetHeight(12)
 
+	-- Hide built-in coordinates (Forever client)
+	if MinimapCluster.MinimapContainer and MinimapCluster.MinimapContainer.PlayerCoords then
+		MinimapCluster.MinimapContainer.PlayerCoords:Hide()
+	end
+
 	self.SchedulerLib:ScheduleRepeatingTask(0.2, self.Update, self)
 
 	-- Register for events
