@@ -1,0 +1,18 @@
+## Interface: 16001
+## Notes: Minimap enhancements
+## Title: Mappy Continued
+## Author: John Stephen, LynchburgJack, Shushuda, wealdly, Little-Bunny-FuFu
+## Version: 4.7.9
+## SavedVariables: gMappy_Settings
+## OptionalDeps: Gatherer, GatherMate, GatherMate2, MBB, FarmHud
+
+Libraries/MC2AddonLib/MC2AddonLib.lua
+Libraries/MC2DebugLib/MC2DebugLib.lua
+Libraries/MC2EventLib/MC2EventLib.lua
+Libraries/MC2SchedulerLib/MC2SchedulerLib.lua
+Libraries/MC2UIElementsLib/MC2UIElementsLib.lua
+
+Libraries/LibStub.lua
+Libraries/LibDropdown-1.0.lua
+
+Mappy.lua
