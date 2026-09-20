@@ -20,6 +20,10 @@ Mappy.StackingInfo = {}
 
 Mappy.CoordAnchorInfo = {}
 
+Mappy.FadeTarget = nil
+Mappy.FadeDuration = 0.3
+Mappy.IsHovering = false
+
 Mappy.BlizzardButtonNames = {
     "GameTimeFrame",
     MinimapCluster.IndicatorFrame.MailFrame,
@@ -285,6 +289,7 @@ function Mappy:InitializeSettings()
                 UseAddonPosition = false,
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
+                MinimapHoverOpaque = false,
 			},
 			gather =
 			{
@@ -319,6 +324,7 @@ function Mappy:InitializeSettings()
                 UseAddonPosition = false,
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
+                MinimapHoverOpaque = false,
 			},
 		},
 	}
@@ -378,6 +384,10 @@ function Mappy:InitializeMinimap()
 	self.EventLib:RegisterEvent("PLAYER_STOPPED_MOVING", self.StoppedMoving, self)
 
     self.EventLib:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED", self.TalentChanged, self)
+
+	-- Hover alpha handling
+	Minimap:HookScript("OnEnter", function() Mappy:MinimapOnEnter() end)
+	Minimap:HookScript("OnLeave", function() Mappy:MinimapOnLeave() end)
 
     -- Reapply addon positioning after Edit Mode exit
     hooksecurefunc(EditModeManagerFrame, "ExitEditMode", self.EditModeExit)
@@ -1150,6 +1160,14 @@ function Mappy:SetMinimapMovingAlpha(pAlpha)
 	self:AdjustAlpha(pAlpha)
 end
 
+function Mappy:SetMinimapHoverOpaque(pValue)
+	if self.DisableUpdates then
+		return
+	end
+
+	self.CurrentProfile.MinimapHoverOpaque = pValue
+end
+
 function Mappy:SetMinimapSize(pSize)
 	if self.DisableUpdates then
 		return
@@ -1531,15 +1549,57 @@ function Mappy:UpdateCoords()
     end
 end
 
+function Mappy:FadeAlphaTo(pTargetAlpha)
+	if Minimap:GetAlpha() == pTargetAlpha then
+		self.FadeTarget = nil
+		return
+	end
+
+	if self.FadeTarget == pTargetAlpha then
+		return
+	end
+
+	self.FadeTarget = pTargetAlpha
+
+	local vFadeInfo = {}
+	vFadeInfo.mode = "IN"
+	vFadeInfo.startAlpha = Minimap:GetAlpha()
+	vFadeInfo.endAlpha = pTargetAlpha
+	vFadeInfo.timeToFade = self.FadeDuration
+	vFadeInfo.finishedFunc = self.OnFadeFinished
+	vFadeInfo.finishedArg1 = self
+
+	UIFrameFade(Minimap, vFadeInfo)
+end
+
+function Mappy:OnFadeFinished()
+	self.FadeTarget = nil
+
+	if self.MappyPlayerArrow then
+		self.MappyPlayerArrow:SetAlpha(1 - Minimap:GetAlpha())
+	end
+
+	-- Fudge the zoom to force the minimap to re-paint
+	local vMinimapZoom = Minimap:GetZoom()
+	if vMinimapZoom > 0 then
+		Minimap:SetZoom(vMinimapZoom - 1)
+	else
+		Minimap:SetZoom(vMinimapZoom + 1)
+	end
+	Minimap:SetZoom(vMinimapZoom)
+end
+
 function Mappy:AdjustAlpha(pForceAlpha)
 	if pForceAlpha then
+		UIFrameFadeRemoveFrame(Minimap)
+		self.FadeTarget = nil
 		Minimap:SetAlpha(pForceAlpha)
 		if self.MappyPlayerArrow then
 			self.MappyPlayerArrow:SetAlpha(1 - pForceAlpha)
 		end
 	else
 		local vAlpha
-		
+
 		if self.InCombat and not self.IsMounted then
 			vAlpha = self.CurrentProfile.MinimapCombatAlpha or 0.2
 		elseif self.IsMoving then
@@ -1547,34 +1607,23 @@ function Mappy:AdjustAlpha(pForceAlpha)
 		else
 			vAlpha = self.CurrentProfile.MinimapAlpha or 1
 		end
-		
+
 		-- Force the alpha to 1 if we're indoors.  The minimap doesn't work
 		-- properly if the alpha isn't 1 (it'll just show solid black) while
 		-- indoors (in this case, indoors means any major city, inside any building, any dungeon)
 		-- Detection of 'indoors' is imperfect however, so there are still times that the minimap
 		-- will go black when you don't want it to
-		
+
 		local forceToOpaque = self:ShouldForceMapToOpaque()
 		if vAlpha > 0 and forceToOpaque then
 			vAlpha = 1
 		end
 
-		if Minimap:GetAlpha() ~= vAlpha then
-			Minimap:SetAlpha(vAlpha)
-
-			if self.MappyPlayerArrow then
-				self.MappyPlayerArrow:SetAlpha(1 - vAlpha)
-			end
-
-			-- Fudge the zoom to force the minimap to re-paint
-			local minimapZoom = Minimap:GetZoom()
-			if minimapZoom > 0 then
-				Minimap:SetZoom(minimapZoom - 1)
-			else
-				Minimap:SetZoom(minimapZoom + 1)
-			end
-			Minimap:SetZoom(minimapZoom)
+		if self.IsHovering and self.CurrentProfile.MinimapHoverOpaque and vAlpha < 1 then
+			vAlpha = 1
 		end
+
+		self:FadeAlphaTo(vAlpha)
 	end
 end
 
@@ -1603,6 +1652,16 @@ end
 
 function Mappy:StoppedMoving()
 	self.IsMoving = false
+	self:AdjustAlpha()
+end
+
+function Mappy:MinimapOnEnter()
+	self.IsHovering = true
+	self:AdjustAlpha()
+end
+
+function Mappy:MinimapOnLeave()
+	self.IsHovering = false
 	self:AdjustAlpha()
 end
 
@@ -2598,12 +2657,17 @@ function Mappy._OptionsPanel:Construct(pParent)
 	MappyMovingAlphaSliderText:SetText("Movement Alpha")
 	self.MovingAlphaSlider:SetMinMaxValues(0, 1)
 
+	self.HoverOpaqueCheckbutton = CreateFrame("CheckButton", "MappyHoverOpaqueCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HoverOpaqueCheckbutton:SetPoint("TOPLEFT", self.AlphaSlider, "BOTTOMLEFT", 0, -20)
+	self.HoverOpaqueCheckbutton:SetScript("OnClick", function (self) Mappy:SetMinimapHoverOpaque(self:GetChecked()) end)
+	MappyHoverOpaqueCheckbuttonText:SetText("Show on hover")
+
     --------------------------------
     -- main settings header
     --------------------------------
     self.SettingsLine = self:CreateLine()
-    self.SettingsLine:SetStartPoint("TOPLEFT", self, 10, -250)
-    self.SettingsLine:SetEndPoint("TOPRIGHT", self, -20, -250)
+    self.SettingsLine:SetStartPoint("TOPLEFT", self, 10, -280)
+    self.SettingsLine:SetEndPoint("TOPRIGHT", self, -20, -280)
     self.SettingsLine:SetColorTexture(1,1,1,0.25)
     self.SettingsLine:SetThickness(2)
 
@@ -2744,6 +2808,7 @@ function Mappy._OptionsPanel:OnShow()
 	self.AlphaSlider:SetValue(Mappy.CurrentProfile.MinimapAlpha or 1)
 	self.CombatAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapCombatAlpha or 0.2)
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
+	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.HideZoneNameCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoneName)
 	self.HideBorderCheckbutton:SetChecked(Mappy.CurrentProfile.HideBorder)
 	self.FlashGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.FlashGatherNodes)
