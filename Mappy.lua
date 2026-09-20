@@ -1531,7 +1531,15 @@ function Mappy:Update()
 		self.wasResting = vResting
 		self:AdjustAlpha()
 	end
-	
+
+	if self.CurrentProfile.MinimapHoverOpaque then
+		local vMouseOver = self:IsMouseOverMinimapArea()
+		if self.IsHovering ~= vMouseOver then
+			self.IsHovering = vMouseOver
+			self:AdjustAlpha()
+		end
+	end
+
 	-- Update the coords
 	if not self.CurrentProfile.HideCoordinates then
 		self:UpdateCoords()
@@ -1671,12 +1679,31 @@ function Mappy:StoppedMoving()
 	self:AdjustAlpha()
 end
 
+function Mappy:IsMouseOverMinimapArea()
+	if MinimapCluster:IsMouseOver()
+	or (MinimapCluster.ZoneTextButton:IsVisible() and MinimapCluster.ZoneTextButton:IsMouseOver())
+	or (TimeManagerClockButton:IsVisible() and TimeManagerClockButton:IsMouseOver()) then
+		return true
+	end
+
+	for _, vButton in ipairs(self.MinimapButtons) do
+		if vButton:IsVisible() and vButton:IsMouseOver() then
+			return true
+		end
+	end
+
+	return false
+end
+
 function Mappy:MinimapOnEnter()
 	self.IsHovering = true
 	self:AdjustAlpha()
 end
 
 function Mappy:MinimapOnLeave()
+	if self.CurrentProfile.MinimapHoverOpaque and self:IsMouseOverMinimapArea() then
+		return
+	end
 	self.IsHovering = false
 	self:AdjustAlpha()
 end
