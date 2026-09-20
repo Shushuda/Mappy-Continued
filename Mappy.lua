@@ -2672,27 +2672,45 @@ function Mappy._OptionsPanel:Construct(pParent)
 	self.AlphaSlider = CreateFrame("Slider", "MappyAlphaSlider", self, "OptionsSliderTemplate")
 	self.AlphaSlider:SetWidth(180)
 	self.AlphaSlider:SetPoint("TOPLEFT", self.SizeSlider, "BOTTOMLEFT", 0, -35)
-	self.AlphaSlider:SetScript("OnValueChanged", function (self) Mappy:SetMinimapAlpha(self:GetValue()) end)
-	MappyAlphaSliderText:SetText("Alpha")
 	self.AlphaSlider:SetMinMaxValues(0, 1)
+	-- initial value
+	MappyAlphaSliderText:SetText("Alpha - " .. (Mappy.CurrentProfile.MinimapAlpha or 1))
+	-- action
+	self.AlphaSlider:SetScript("OnValueChanged", function (self, value)
+        local vSize = tonumber(string.format("%.2f", value))
+        Mappy:SetMinimapAlpha(vSize)
+        MappyAlphaSliderText:SetText("Alpha - " .. vSize)
+    end)
 	
 	-- Combat alpha slider
 	
 	self.CombatAlphaSlider = CreateFrame("Slider", "MappyCombatAlphaSlider", self, "OptionsSliderTemplate")
 	self.CombatAlphaSlider:SetWidth(180)
 	self.CombatAlphaSlider:SetPoint("TOPLEFT", self.AlphaSlider, "TOPRIGHT", 20, 0)
-	self.CombatAlphaSlider:SetScript("OnValueChanged", function (self) Mappy:SetMinimapCombatAlpha(self:GetValue()) end)
-	MappyCombatAlphaSliderText:SetText("Combat Alpha")
 	self.CombatAlphaSlider:SetMinMaxValues(0, 1)
+	-- initial value
+	MappyCombatAlphaSliderText:SetText("Combat Alpha - " .. (Mappy.CurrentProfile.MinimapCombatAlpha or 1))
+	-- action
+	self.CombatAlphaSlider:SetScript("OnValueChanged", function (self, value)
+        local vSize = tonumber(string.format("%.2f", value))
+        Mappy:SetMinimapCombatAlpha(vSize)
+        MappyCombatAlphaSliderText:SetText("Combat Alpha - " .. vSize)
+    end)
 	
 	-- Movement alpha slider
 	
 	self.MovingAlphaSlider = CreateFrame("Slider", "MappyMovingAlphaSlider", self, "OptionsSliderTemplate")
 	self.MovingAlphaSlider:SetWidth(180)
 	self.MovingAlphaSlider:SetPoint("TOPLEFT", self.CombatAlphaSlider, "TOPRIGHT", 20, 0)
-	self.MovingAlphaSlider:SetScript("OnValueChanged", function (self) Mappy:SetMinimapMovingAlpha(self:GetValue()) end)
-	MappyMovingAlphaSliderText:SetText("Movement Alpha")
 	self.MovingAlphaSlider:SetMinMaxValues(0, 1)
+	-- initial value
+	MappyMovingAlphaSliderText:SetText("Movement Alpha - " .. (Mappy.CurrentProfile.MinimapMovingAlpha or 1))
+	-- action
+	self.MovingAlphaSlider:SetScript("OnValueChanged", function (self, value)
+        local vSize = tonumber(string.format("%.2f", value))
+        Mappy:SetMinimapMovingAlpha(vSize)
+        MappyMovingAlphaSliderText:SetText("Movement Alpha - " .. vSize)
+    end)
 
     --------------------------------
     -- main settings header
