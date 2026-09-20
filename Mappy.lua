@@ -21,7 +21,7 @@ Mappy.StackingInfo = {}
 Mappy.CoordAnchorInfo = {}
 
 Mappy.FadeTarget = nil
-Mappy.FadeDuration = 0.3
+Mappy.FadeDuration = 0.2
 Mappy.IsHovering = false
 
 Mappy.BlizzardButtonNames = {
@@ -290,6 +290,7 @@ function Mappy:InitializeSettings()
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
+                FadeButtons = false,
 			},
 			gather =
 			{
@@ -325,6 +326,7 @@ function Mappy:InitializeSettings()
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
+                FadeButtons = false,
 			},
 		},
 	}
@@ -519,6 +521,8 @@ function Mappy:ConfigureMinimapOptions()
 	else
 		self:DisableButtonStacking()
 	end
+
+	self:ApplyButtonFadeSetting()
 
 	if self.CurrentProfile.HideTimeOfDay then
 		GameTimeFrame:Hide()
@@ -1550,7 +1554,7 @@ function Mappy:UpdateCoords()
 end
 
 function Mappy:FadeAlphaTo(pTargetAlpha)
-	if Minimap:GetAlpha() == pTargetAlpha then
+	if MinimapCluster:GetAlpha() == pTargetAlpha then
 		self.FadeTarget = nil
 		return
 	end
@@ -1561,22 +1565,32 @@ function Mappy:FadeAlphaTo(pTargetAlpha)
 
 	self.FadeTarget = pTargetAlpha
 
+	-- Fade buttons, clock, zone etc
 	local vFadeInfo = {}
 	vFadeInfo.mode = "IN"
-	vFadeInfo.startAlpha = Minimap:GetAlpha()
+	vFadeInfo.startAlpha = MinimapCluster:GetAlpha()
 	vFadeInfo.endAlpha = pTargetAlpha
 	vFadeInfo.timeToFade = self.FadeDuration
 	vFadeInfo.finishedFunc = self.OnFadeFinished
 	vFadeInfo.finishedArg1 = self
 
-	UIFrameFade(Minimap, vFadeInfo)
+	UIFrameFade(MinimapCluster, vFadeInfo)
+
+	-- Fade the actual minimap
+	local vMinimapFadeInfo = {}
+	vMinimapFadeInfo.mode = "IN"
+	vMinimapFadeInfo.startAlpha = Minimap:GetAlpha()
+	vMinimapFadeInfo.endAlpha = pTargetAlpha
+	vMinimapFadeInfo.timeToFade = self.FadeDuration
+
+	UIFrameFade(Minimap, vMinimapFadeInfo)
 end
 
 function Mappy:OnFadeFinished()
 	self.FadeTarget = nil
 
 	if self.MappyPlayerArrow then
-		self.MappyPlayerArrow:SetAlpha(1 - Minimap:GetAlpha())
+		self.MappyPlayerArrow:SetAlpha(1 - MinimapCluster:GetAlpha())
 	end
 
 	-- Fudge the zoom to force the minimap to re-paint
@@ -1591,8 +1605,10 @@ end
 
 function Mappy:AdjustAlpha(pForceAlpha)
 	if pForceAlpha then
+		UIFrameFadeRemoveFrame(MinimapCluster)
 		UIFrameFadeRemoveFrame(Minimap)
 		self.FadeTarget = nil
+		MinimapCluster:SetAlpha(pForceAlpha)
 		Minimap:SetAlpha(pForceAlpha)
 		if self.MappyPlayerArrow then
 			self.MappyPlayerArrow:SetAlpha(1 - pForceAlpha)
@@ -1892,6 +1908,20 @@ function Mappy:SetStackToScreen(pStackToScreen)
 	end
 
 	self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+end
+
+function Mappy:SetFadeButtons(pValue)
+	if self.DisableUpdates then return end
+
+	self.CurrentProfile.FadeButtons = pValue
+	self:ApplyButtonFadeSetting()
+end
+
+function Mappy:ApplyButtonFadeSetting()
+	local vIgnore = not self.CurrentProfile.FadeButtons
+	for _, vButton in ipairs(self.MinimapButtons) do
+		vButton:SetIgnoreParentAlpha(vIgnore)
+	end
 end
 
 function Mappy.Button_OnHide(self, ...)
@@ -2629,7 +2659,14 @@ function Mappy._OptionsPanel:Construct(pParent)
         Mappy:SetMinimapSize(vSize)
         MappySizeSliderText:SetText("Size - " .. vSize)
     end)
-	
+
+	-- Hover alpha toggle
+
+	self.HoverOpaqueCheckbutton = CreateFrame("CheckButton", "MappyHoverOpaqueCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HoverOpaqueCheckbutton:SetPoint("LEFT", self.SizeSlider, "RIGHT", 30, 0)
+	self.HoverOpaqueCheckbutton:SetScript("OnClick", function (self) Mappy:SetMinimapHoverOpaque(self:GetChecked()) end)
+	MappyHoverOpaqueCheckbuttonText:SetText("100% alpha on hover")
+
 	-- Alpha slider
 	
 	self.AlphaSlider = CreateFrame("Slider", "MappyAlphaSlider", self, "OptionsSliderTemplate")
@@ -2657,17 +2694,12 @@ function Mappy._OptionsPanel:Construct(pParent)
 	MappyMovingAlphaSliderText:SetText("Movement Alpha")
 	self.MovingAlphaSlider:SetMinMaxValues(0, 1)
 
-	self.HoverOpaqueCheckbutton = CreateFrame("CheckButton", "MappyHoverOpaqueCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.HoverOpaqueCheckbutton:SetPoint("TOPLEFT", self.AlphaSlider, "BOTTOMLEFT", 0, -20)
-	self.HoverOpaqueCheckbutton:SetScript("OnClick", function (self) Mappy:SetMinimapHoverOpaque(self:GetChecked()) end)
-	MappyHoverOpaqueCheckbuttonText:SetText("Show on hover")
-
     --------------------------------
     -- main settings header
     --------------------------------
     self.SettingsLine = self:CreateLine()
-    self.SettingsLine:SetStartPoint("TOPLEFT", self, 10, -280)
-    self.SettingsLine:SetEndPoint("TOPRIGHT", self, -20, -280)
+    self.SettingsLine:SetStartPoint("TOPLEFT", self, 10, -250)
+    self.SettingsLine:SetEndPoint("TOPRIGHT", self, -20, -250)
     self.SettingsLine:SetColorTexture(1,1,1,0.25)
     self.SettingsLine:SetThickness(2)
 
@@ -2973,6 +3005,13 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.StackToScreenCheckbutton:SetScript("OnClick", function (self) Mappy:SetStackToScreen(self:GetChecked()) end)
 	MappyStackToScreenCheckbuttonText:SetText("Stack around screen")
 
+	-- Alpha ignore
+
+	self.FadeButtonsCheckbutton = CreateFrame("CheckButton", "MappyFadeButtonsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.FadeButtonsCheckbutton:SetPoint("TOPLEFT", self.AutoStackCheckbutton, "TOPLEFT", 340, 0)
+	self.FadeButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeButtons(not self:GetChecked()) end)
+	MappyFadeButtonsCheckbuttonText:SetText("Buttons ignore minimap alpha")
+
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -2990,6 +3029,7 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	self.BottomRightCheckbutton:SetChecked(Mappy.CurrentProfile.StartingCorner == "BOTTOMRIGHT")
 	self.CCWCheckbutton:SetChecked(Mappy.CurrentProfile.CCW)
 	self.StackToScreenCheckbutton:SetChecked(Mappy.CurrentProfile.StackToScreen)
+	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
 
 	Mappy.DisableUpdates = false
 end
