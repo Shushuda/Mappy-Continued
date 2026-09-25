@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mappy-Continued is a World of Warcraft addon that transforms the minimap into a square shape with extensive customization. Written entirely in Lua, it runs directly in WoW with no build step. The TOC file (`Mappy.toc`) defines the load order and metadata.
+Mappy-Continued is a World of Warcraft addon that transforms the minimap into a square shape with extensive customization. Written entirely in Lua, it runs directly in WoW with no build step. The TOC file (`Mappy.toc` and `Mappy_Camelot.toc`) defines the load order and metadata.
 
 **Maintainer philosophy:** This is a maintenance fork — preserve existing features with minimal changes. Avoid adding new features or refactoring unless explicitly requested.
 
 ## Key Files
 
-- **Mappy.toc** — Addon manifest (Interface version, SavedVariables, load order, optional deps)
+- **Mappy.toc** — Addon manifest for retail WoW (Interface version, SavedVariables, load order, optional deps)
+- **Mappy_Camelot.toc** — Addon manifest for WoW Forever (Interface version, SavedVariables, load order, optional deps)
 - **Mappy.lua** — Entire addon logic (~2,900 lines): initialization, minimap management, settings UI, profiles, slash commands, gathering integration
 - **Libraries/** — Bundled custom libraries (MC2AddonLib, MC2DebugLib, MC2EventLib, MC2SchedulerLib, MC2UIElementsLib, LibStub, LibDropdown-1.0)
 - **Textures/** — BLP textures for minimap mask and gathering node icons
@@ -87,7 +88,7 @@ The `wow-ui-source/` directory contains the latest WoW UI source code mirrored f
 
 For WoW API lookups, prefer `wow-ui-source/` for source code reference. For wiki documentation, restrict web searches to `warcraft.wiki.gg`.
 
-## WoW Midnight (12.0) Secret Values System
+## WoW Midnight (12.0) and Forever (1.60.1) Secret Values System
 
 ### When Aura Data Becomes Secret
 | Context | Aura Data |
