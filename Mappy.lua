@@ -40,6 +40,12 @@ Mappy.BlizzardButtonNames = {
     "AddonCompartmentFrame",
 }
 
+-- Day/night button (Forever client)
+-- Insert prevents premature stop on a nil entry on the retail client
+if MinimapCluster.DielFrame then
+    table.insert(Mappy.BlizzardButtonNames, 1, MinimapCluster.DielFrame)
+end
+
 Mappy.BlizzardMinimalistButtons = {
     [GameTimeFrame] = true,
     [MinimapCluster.IndicatorFrame.MailFrame] = true,
@@ -391,7 +397,7 @@ function Mappy:InitializeMinimap()
 	Minimap:HookScript("OnEnter", function() Mappy:MinimapOnEnter() end)
 	Minimap:HookScript("OnLeave", function() Mappy:MinimapOnLeave() end)
 
-    -- Reapply addon positioning after Edit Mode exit
+    -- Reapply addon positioning and minimap size after Edit Mode exit
     hooksecurefunc(EditModeManagerFrame, "ExitEditMode", self.EditModeExit)
 
     -- Apply Edit Mode positioning on enter to avoid positioning issues
@@ -1213,6 +1219,14 @@ function Mappy:ConfigureMinimap()
             EditModeManagerFrame.layoutInfo.activeLayout)
     end
 
+    -- Override Edit Mode size
+    MinimapCluster.MinimapContainer:SetScale(1)
+
+    -- Override day/night button scaling (Forever client)
+    if MinimapCluster.DielFrame then
+        MinimapCluster.DielFrame:SetScale(1)
+    end
+
     if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
 	    Minimap:SetWidth(self.CurrentProfile.MinimapSize)
 	    Minimap:SetHeight(self.CurrentProfile.MinimapSize)
@@ -1709,16 +1723,12 @@ function Mappy:MinimapOnLeave()
 end
 
 function Mappy:TalentChanged()
-    -- Restore Mappy positioning
-    if Mappy.CurrentProfile.UseAddonPosition then
-        Mappy:LoadProfile(Mappy.CurrentProfile)
-    end
+    -- Restore Mappy positioning and size
+    Mappy:LoadProfile(Mappy.CurrentProfile)
 end
 
 function Mappy:EditModeExit()
-    if Mappy.CurrentProfile.UseAddonPosition then
-        Mappy:LoadProfile(Mappy.CurrentProfile)
-    end
+    Mappy:LoadProfile(Mappy.CurrentProfile)
 end
 
 function Mappy:EditModeEnter()
