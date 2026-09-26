@@ -221,6 +221,13 @@ Mappy.ObjectIconsHighlightSmallOldPath = "Interface\\Addons\\Mappy\\Textures\\Ob
 Mappy.ObjectIconsNormalPath = ""
 Mappy.ObjectIconsHighlightPath = ""
 
+Mappy.HousingIndoorBgPath = "Interface\\Addons\\Mappy\\Textures\\UIHudMinimapHousingIndoorStaticBg"
+
+Mappy.SquareQuestRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareQuestRing"
+Mappy.SquareTaskRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareTaskRing"
+Mappy.SquareArchRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareArchRing"
+
+
 Mappy.LandmarkArrows = {}
 
 
@@ -700,6 +707,17 @@ end
 -- Protected positioning ops are in ApplyProtectedInitState()
 function Mappy:InitializeSquareShape()
 	Minimap:SetMaskTexture("Interface\\Addons\\Mappy\\Textures\\MinimapMask")
+
+	-- Pre-load ring textures into engine cache for Set*BlobRingTexture
+	local vRingPreloader = Minimap:CreateTexture(nil, "BACKGROUND")
+	vRingPreloader:SetTexture(self.SquareQuestRingPath)
+	vRingPreloader:SetTexture(self.SquareTaskRingPath)
+	vRingPreloader:SetTexture(self.SquareArchRingPath)
+	vRingPreloader:SetAlpha(0)
+	Minimap:SetQuestBlobRingTexture(self.SquareQuestRingPath)
+	Minimap:SetTaskBlobRingTexture(self.SquareTaskRingPath)
+	Minimap:SetArchBlobRingTexture(self.SquareArchRingPath)
+
     MinimapCompassTexture:SetTexture(nil)
 
 	-- 10/14/2020 - Updated code to use the new Backdrop templates -LynchburgJack
@@ -713,7 +731,7 @@ function Mappy:InitializeSquareShape()
 		vStaticOverlay:ClearAllPoints()
 		vStaticOverlay:SetAllPoints(Minimap)
 		vStaticOverlay:SetDrawLayer("BACKGROUND")
-		vStaticOverlay:SetTexture("Interface\\Addons\\Mappy\\Textures\\UIHudMinimapHousingIndoorStaticBg")
+		vStaticOverlay:SetTexture(self.HousingIndoorBgPath)
 		-- Prevent overwriting with atlas area
 		vStaticOverlay.SetAtlas = function() end
 		MinimapBackdrop.StaticOverlayTexture = vStaticOverlay
