@@ -80,9 +80,22 @@ Minimap frames are protected by Blizzard. The addon checks `CanChangeProtectedSt
 
 The `wow-ui-source/` directory contains the latest WoW UI source code mirrored from Blizzard. This is **documentation only** - use it as a reference for WoW's Lua API, frame templates, and UI patterns. Do not modify files in this directory or treat them as part of this addon project.
 
+It's a git repo with one branch per WoW client. The working tree is on `live`, so searching its files covers **retail only**. Read other branches without checking them out:
+- Search: `git -C wow-ui-source grep -n <pattern> origin/<branch> --`
+- Read a file: `git -C wow-ui-source show origin/<branch>:<path>`
+
+| Branch | Client | Mappy TOC |
+|---|---|---|
+| `live` | Retail | `Mappy.toc` |
+| `forever` | WoW Forever | `Mappy_Camelot.toc` |
+| `ptr`, `ptr2`, `beta` | Retail test clients | `Mappy.toc` |
+
+Other branches are for clients Mappy doesn't support, so ignore them. Each branch's `version.txt` holds its exact build, and test branches can lag behind `live`. Remote branches are only as current as the last `git fetch`. On `forever`, Forever-only code lives in `Camelot/` subfolders, and Blizzard's TOCs tag those files `[AllowLoadGameType camelot]` (e.g. `Blizzard_Minimap/Camelot/Diel.lua`).
+
 **Before modifying any WoW API call**, verify the replacement against:
 1. `wow-ui-source/Interface/AddOns/Blizzard_Deprecated/` for transition guides
 2. `wow-ui-source/` for usage examples in Blizzard's own code
+3. The `forever` branch too, since `Mappy.lua` runs on both clients
 
 ## Web Resources
 
