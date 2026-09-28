@@ -306,6 +306,9 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 FadeButtons = false,
+                HideQuestRing = false,
+                HideTaskRing = false,
+                HideArchRing = false,
 			},
 			gather =
 			{
@@ -343,6 +346,9 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 FadeButtons = false,
+                HideQuestRing = false,
+                HideTaskRing = false,
+                HideArchRing = false,
 			},
 		},
 	}
@@ -625,6 +631,26 @@ function Mappy:ConfigureMinimapOptions()
 		self:StartGatherFlash()
 	else
 		self:StopGatherFlash()
+	end
+
+	-- Only scalar works on currently selected quest's ring
+	if self.CurrentProfile.HideQuestRing then
+		Minimap:SetQuestBlobRingScalar(0)
+	else
+		Minimap:SetQuestBlobRingScalar(1)
+	end
+
+	-- But only alpha works on the rest
+	if self.CurrentProfile.HideTaskRing then
+		Minimap:SetTaskBlobRingAlpha(0)
+	else
+		Minimap:SetTaskBlobRingAlpha(128)
+	end
+
+	if self.CurrentProfile.HideArchRing then
+		Minimap:SetArchBlobRingAlpha(0)
+	else
+		Minimap:SetArchBlobRingAlpha(128)
 	end
 
 	self:AdjustBackgroundStyle()
@@ -1987,6 +2013,36 @@ function Mappy:SetHideBorder(pHide)
 	self:AdjustBackgroundStyle()
 end
 
+function Mappy:SetHideQuestRing(pHide)
+	if pHide then
+		self.CurrentProfile.HideQuestRing = true
+		Minimap:SetQuestBlobRingScalar(0)
+	else
+		self.CurrentProfile.HideQuestRing = nil
+		Minimap:SetQuestBlobRingScalar(1)
+	end
+end
+
+function Mappy:SetHideTaskRing(pHide)
+	if pHide then
+		self.CurrentProfile.HideTaskRing = true
+		Minimap:SetTaskBlobRingAlpha(0)
+	else
+		self.CurrentProfile.HideTaskRing = nil
+		Minimap:SetTaskBlobRingAlpha(128)
+	end
+end
+
+function Mappy:SetHideArchRing(pHide)
+	if pHide then
+		self.CurrentProfile.HideArchRing = true
+		Minimap:SetArchBlobRingAlpha(0)
+	else
+		self.CurrentProfile.HideArchRing = nil
+		Minimap:SetArchBlobRingAlpha(128)
+	end
+end
+
 function Mappy:SetAutoArrangeButtons(pEnable)
 	if pEnable then
 		self.CurrentProfile.AutoArrangeButtons = true
@@ -3052,6 +3108,33 @@ function Mappy._AppearancePanel:Construct(pParent)
 	self.FadeButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeButtons(not self:GetChecked()) end)
 	MappyFadeButtonsCheckbuttonText:SetText("Buttons ignore minimap alpha")
 
+	-- Quest ring toggle
+
+	self.HideQuestRingCheckbutton = CreateFrame("CheckButton", "MappyHideQuestRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideQuestRingCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
+	self.HideQuestRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideQuestRing(self:GetChecked()) end)
+	MappyHideQuestRingCheckbuttonText:SetText("Hide quest area border")
+
+	-- World quest ring toggle
+	-- TODO: Tentatively left, might be redundant in Forever, check if needed
+
+	self.HideTaskRingCheckbutton = CreateFrame("CheckButton", "MappyHideTaskRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideTaskRingCheckbutton:SetPoint("TOPLEFT", self.HideQuestRingCheckbutton, "TOPLEFT", 0, -25)
+	self.HideTaskRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTaskRing(self:GetChecked()) end)
+	MappyHideTaskRingCheckbuttonText:SetText("Hide world quest area border")
+
+	-- Archaeology ring toggle (retail client)
+	-- TODO: Swap Diel detection for something more proper, like interface number or something,
+	-- and use that globally for client checks
+	-- (afaik atm Forever beta returns retail var for client checks so can't use that unless they fix lol)
+
+	if not MinimapCluster.DielFrame then
+		self.HideArchRingCheckbutton = CreateFrame("CheckButton", "MappyHideArchRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.HideArchRingCheckbutton:SetPoint("TOPLEFT", self.HideTaskRingCheckbutton, "TOPLEFT", 0, -25)
+		self.HideArchRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideArchRing(self:GetChecked()) end)
+		MappyHideArchRingCheckbuttonText:SetText("Hide archaeology area border")
+	end
+
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -3065,6 +3148,11 @@ function Mappy._AppearancePanel:OnShow()
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
 	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
+	self.HideQuestRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideQuestRing)
+	self.HideTaskRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTaskRing)
+	if self.HideArchRingCheckbutton then
+		self.HideArchRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideArchRing)
+	end
 
 	Mappy.DisableUpdates = false
 end
