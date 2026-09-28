@@ -3150,25 +3150,26 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 		MappyHideDielCheckbuttonText:SetText("Hide day/night icon")
 	end
 
-	-- Hide time-of-day
+	-- Hide calendar
+
 	self.HideTimeOfDayCheckbutton = CreateFrame("CheckButton", "MappyHideTimeOfDayCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideTimeOfDayCheckbutton:SetPoint("TOPLEFT", self.HideZoneNameCheckbutton, "TOPLEFT", 340, 0)
 	self.HideTimeOfDayCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeOfDay(self:GetChecked()) end)
 	MappyHideTimeOfDayCheckbuttonText:SetText("Hide calendar button")
 
-	-- Hide Tracking Icon
+	-- Hide Tracking button
 
 	self.HideMiniMapTrackingCheckbutton = CreateFrame("CheckButton", "MappyHideMiniMapTrackingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideMiniMapTrackingCheckbutton:SetPoint("TOPLEFT", self.HideTimeOfDayCheckbutton, "TOPLEFT", 0, -25)
 	self.HideMiniMapTrackingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTracking(self:GetChecked()) end)
-	MappyHideMiniMapTrackingCheckbuttonText:SetText("Hide Tracking icon")
+	MappyHideMiniMapTrackingCheckbuttonText:SetText("Hide Tracking button")
 
-    -- Hide Addon Compartment Icon
+    -- Hide Addon Compartment button
 
     self.HideAddonCompartmentCheckbutton = CreateFrame("CheckButton", "MappyHideAddonCompartmentCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
     self.HideAddonCompartmentCheckbutton:SetPoint("TOPLEFT", self.HideMiniMapTrackingCheckbutton, "TOPLEFT", 0, -25)
     self.HideAddonCompartmentCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideAddonCompartment(self:GetChecked()) end)
-    MappyHideAddonCompartmentCheckbuttonText:SetText("Hide Addon Compartment icon")
+    MappyHideAddonCompartmentCheckbuttonText:SetText("Hide Addon Compartment button")
 
     --------------------------------
     -- stacking header
