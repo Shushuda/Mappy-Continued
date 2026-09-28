@@ -298,6 +298,7 @@ function Mappy:InitializeSettings()
 				HideTracking = false,
                 HideAddonCompartment = false,
 				HideTimeManagerClock = false,
+				HideDiel = false,
 				FlashGatherNodes = false,
                 NormalGatherNodes = true, -- use large icons
                 UseAddonPosition = false,
@@ -327,6 +328,7 @@ function Mappy:InitializeSettings()
 				HideTracking = false,
                 HideAddonCompartment = false,
 				HideTimeManagerClock = false,
+				HideDiel = false,
 				FlashGatherNodes = true,
                 NormalGatherNodes = false, -- use large icons
 				AttachmentPosition = {
@@ -574,6 +576,16 @@ function Mappy:ConfigureMinimapOptions()
 		if TimeManagerClockButton then
 			TimeManagerClockButton:SetAlpha(1)
 			TimeManagerClockButton:Show()
+		end
+	end
+
+	-- Forever client
+	if MinimapCluster.DielFrame then
+		if self.CurrentProfile.HideDiel then
+			MinimapCluster.DielFrame:Hide()
+		else
+			MinimapCluster.DielFrame:SetAlpha(1)
+			MinimapCluster.DielFrame:Show()
 		end
 	end
 
@@ -1852,6 +1864,26 @@ function Mappy:SetHideTimeManagerClock(pHide)
 	end
 end
 
+function Mappy:SetHideDiel(pHide)
+	if pHide then
+		self.CurrentProfile.HideDiel = true
+		MinimapCluster.DielFrame:SetAlpha(0)
+	else
+		self.CurrentProfile.HideDiel = nil
+		MinimapCluster.DielFrame:SetAlpha(1)
+	end
+	-- Real Show/Hide are protected - defer if in combat
+	if InCombatLockdown() then
+		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+		return
+	end
+	if pHide then
+		MinimapCluster.DielFrame:Hide()
+	else
+		MinimapCluster.DielFrame:Show()
+	end
+end
+
 function Mappy:SetHideTimeOfDay(pHide)
 	if pHide then
 		self.CurrentProfile.HideTimeOfDay = true
@@ -3104,6 +3136,15 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.HideTimeManagerClockCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeManagerClock(self:GetChecked()) end)
 	MappyHideTimeManagerClockCheckbuttonText:SetText("Hide clock")
 
+	-- Hide day/night icon (Forever client)
+
+	if MinimapCluster.DielFrame then
+		self.HideDielCheckbutton = CreateFrame("CheckButton", "MappyHideDielCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.HideDielCheckbutton:SetPoint("TOPLEFT", self.HideTimeManagerClockCheckbutton, "TOPLEFT", 0, -25)
+		self.HideDielCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideDiel(self:GetChecked()) end)
+		MappyHideDielCheckbuttonText:SetText("Hide day/night icon")
+	end
+
 	-- Hide time-of-day
 	self.HideTimeOfDayCheckbutton = CreateFrame("CheckButton", "MappyHideTimeOfDayCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HideTimeOfDayCheckbutton:SetPoint("TOPLEFT", self.HideZoneNameCheckbutton, "TOPLEFT", 340, 0)
@@ -3191,6 +3232,9 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	self.HideTimeOfDayCheckbutton:SetChecked(Mappy.CurrentProfile.HideTimeOfDay)
 	self.HideMiniMapTrackingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTracking)
 	self.HideTimeManagerClockCheckbutton:SetChecked(Mappy.CurrentProfile.HideTimeManagerClock)
+	if self.HideDielCheckbutton then
+		self.HideDielCheckbutton:SetChecked(Mappy.CurrentProfile.HideDiel)
+	end
     self.HideAddonCompartmentCheckbutton:SetChecked(Mappy.CurrentProfile.HideAddonCompartment)
 	self.AutoStackCheckbutton:SetChecked(Mappy.CurrentProfile.AutoArrangeButtons)
 	self.TopLeftCheckbutton:SetChecked(Mappy.CurrentProfile.StartingCorner == "TOPLEFT")
