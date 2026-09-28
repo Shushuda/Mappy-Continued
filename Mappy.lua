@@ -893,7 +893,12 @@ function Mappy:ExecuteCommand(pCommand)
 	
 	if not vCommand then
         if Mappy.SettingsCategory then
-            Settings.OpenToCategory(Mappy.SettingsCategory:GetID())
+            -- Opening settings is restricted in combat
+            if InCombatLockdown() then
+                self:ErrorMessage("Cannot open settings during combat.")
+            else
+                Settings.OpenToCategory(Mappy.SettingsCategory:GetID())
+            end
         end
 		return
 	end
