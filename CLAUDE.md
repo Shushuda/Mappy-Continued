@@ -37,10 +37,10 @@ ADDON_LOADED event → AddonLoaded()
   ├─ InitializeSettings() (first run)
   ├─ Load CurrentProfile from gMappy_Settings
   └─ Schedule InitializeMinimap (0.5s delay)
-      ├─ FindMinimapButtons(), InitializeDragging(), InitializeSquareShape()
+      ├─ FindMinimapButtons(), InitializeSquareShape() (combat-safe calls only)
       ├─ Register event handlers (combat, movement, zone changes)
       ├─ Setup coordinate display
-      ├─ Schedule ConfigureMinimap (0.5s)
+      ├─ Schedule ConfigureMinimap (0.5s; waits for combat to end, first run calls ApplyProtectedInitState())
       └─ Schedule UpdateMountedState (recurring 0.5s)
 ```
 
@@ -64,9 +64,14 @@ ADDON_LOADED event → AddonLoaded()
 
 Graceful integration with Gatherer, GatherMate/GatherMate2, MBB (MinimapButtonBag Reborn), and FarmHud. These are declared as `OptionalDeps` in the TOC.
 
-### Protected Frame Handling
+### Combat Handling
 
-Minimap frames are protected by Blizzard. The addon checks `CanChangeProtectedState()` before modifying protected frames and hooks Edit Mode enter/exit for compatibility.
+On retail and Forever, none of the minimap frames Mappy touches are protected: `IsProtected()` returns `false` for `Minimap`, `MinimapCluster` and the Blizzard buttons Mappy hides. The combat deferral below is a precaution, not a requirement:
+- `InitializeMinimap()` runs even in combat and only makes combat-safe calls (`SetAlpha`, `SetScript`, `SetMaskTexture`, `SetBackdrop`, etc.).
+- `ConfigureMinimap()` returns early during combat (`InCombatLockdown()`) and while Edit Mode is active. On a combat login this delays size, position, button hiding and stacking until `PLAYER_REGEN_ENABLED` reschedules it. Its `IsProtected()`/`CanChangeProtectedState()` check can only fire when the combat check would too.
+- `ApplyProtectedInitState()` holds the one-time `Hide`/`SetPoint`/`SetSize`/`RegisterForDrag` calls and runs on the first `ConfigureMinimap()` after combat.
+- Hide setters apply `SetAlpha()` immediately and defer the real `Show()`/`Hide()` until after combat.
+- Edit Mode enter/exit is hooked for compatibility.
 
 ## Code Conventions
 
