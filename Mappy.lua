@@ -23,6 +23,8 @@ Mappy.CoordAnchorInfo = {}
 Mappy.FadeTarget = nil
 Mappy.FadeDuration = 0.2
 Mappy.IsHovering = false
+Mappy.ButtonHideDelay = 3
+Mappy.ButtonsHidden = false
 
 Mappy.BlizzardButtonNames = {
     "GameTimeFrame",
@@ -306,6 +308,7 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 FadeButtons = false,
+                AutoHideButtons = false,
                 HideQuestRing = false,
                 HideTaskRing = false,
                 HideArchRing = false,
@@ -346,6 +349,7 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 FadeButtons = false,
+                AutoHideButtons = false,
                 HideQuestRing = false,
                 HideTaskRing = false,
                 HideArchRing = false,
@@ -412,6 +416,11 @@ function Mappy:InitializeMinimap()
 	-- Hover alpha handling
 	Minimap:HookScript("OnEnter", function() Mappy:MinimapOnEnter() end)
 	Minimap:HookScript("OnLeave", function() Mappy:MinimapOnLeave() end)
+
+	-- Button mouseover fade workaround
+	self.ButtonFader = CreateFrame("Frame")
+	hooksecurefunc(self.ButtonFader, "SetAlpha", function(_, pAlpha) Mappy:SetButtonsAlpha(pAlpha) end)
+	self:UpdateButtonAutoHide()
 
     -- Reapply addon positioning and minimap size after Edit Mode exit
     hooksecurefunc(EditModeManagerFrame, "ExitEditMode", self.EditModeExit)
@@ -654,6 +663,7 @@ function Mappy:ConfigureMinimapOptions()
 	end
 
 	self:AdjustBackgroundStyle()
+	self:ReapplyButtonsAlpha()
 end
 
 function Mappy:EnableButtonStacking()
@@ -892,7 +902,8 @@ function Mappy:LoadProfile(pProfile)
 	local vProfileChanged = self.CurrentProfile ~= pProfile
 	
 	self.CurrentProfile = pProfile
-	
+	self:UpdateButtonAutoHide()
+
 	if vProfileChanged then
 		if self.OptionsPanel:IsVisible() then
 			self.OptionsPanel:OnShow()
@@ -1399,6 +1410,7 @@ function Mappy:ConfigureMinimap()
 	end
 
 	self:AdjustAlpha()
+	self:ReapplyButtonsAlpha()
 end
 
 function Mappy:GetUIObjectDescription(pUIObject)
@@ -1612,11 +1624,12 @@ function Mappy:Update()
 		self:AdjustAlpha()
 	end
 
-	if self.CurrentProfile.MinimapHoverOpaque then
+	if self.CurrentProfile.MinimapHoverOpaque or self.CurrentProfile.AutoHideButtons then
 		local vMouseOver = self:IsMouseOverMinimapArea()
 		if self.IsHovering ~= vMouseOver then
 			self.IsHovering = vMouseOver
 			self:AdjustAlpha()
+			self:UpdateButtonAutoHide()
 		end
 	end
 
@@ -1778,14 +1791,16 @@ end
 function Mappy:MinimapOnEnter()
 	self.IsHovering = true
 	self:AdjustAlpha()
+	self:UpdateButtonAutoHide()
 end
 
 function Mappy:MinimapOnLeave()
-	if self.CurrentProfile.MinimapHoverOpaque and self:IsMouseOverMinimapArea() then
+	if (self.CurrentProfile.MinimapHoverOpaque or self.CurrentProfile.AutoHideButtons) and self:IsMouseOverMinimapArea() then
 		return
 	end
 	self.IsHovering = false
 	self:AdjustAlpha()
+	self:UpdateButtonAutoHide()
 end
 
 function Mappy:TalentChanged()
@@ -2077,6 +2092,71 @@ function Mappy:ApplyButtonFadeSetting()
 	end
 end
 
+function Mappy:SetAutoHideButtons(pValue)
+	if self.DisableUpdates then return end
+
+	self.CurrentProfile.AutoHideButtons = pValue
+	self:UpdateButtonAutoHide()
+end
+
+-- Show buttons on mouseover, hide after a delay
+function Mappy:UpdateButtonAutoHide()
+	if self.CurrentProfile.AutoHideButtons and not self.IsHovering then
+		self.SchedulerLib:ScheduleUniqueTask(self.ButtonHideDelay, self.HideButtons, self)
+	else
+		self.SchedulerLib:UnscheduleTask(self.HideButtons, self)
+		self:ShowButtons()
+	end
+end
+
+function Mappy:HideButtons()
+	if self.ButtonsHidden then return end
+	self.ButtonsHidden = true
+	self:FadeButtonsTo(0)
+end
+
+function Mappy:ShowButtons()
+	if not self.ButtonsHidden then return end
+	self.ButtonsHidden = false
+	self:FadeButtonsTo(1)
+end
+
+-- Briefly show buttons when a new one appears
+function Mappy:RevealButtons()
+	if not self.CurrentProfile.AutoHideButtons then return end
+
+	self:ShowButtons()
+	if not self.IsHovering then
+		self.SchedulerLib:RescheduleTask(self.ButtonHideDelay, self.HideButtons, self)
+	end
+end
+
+-- UIFrameFade calls Show(), so fade a helper frame instead of the buttons
+-- Avoids unhiding hidden buttons on accident
+function Mappy:FadeButtonsTo(pTargetAlpha)
+	local vFadeInfo = {}
+	vFadeInfo.mode = "IN"
+	vFadeInfo.startAlpha = self.ButtonFader:GetAlpha()
+	vFadeInfo.endAlpha = pTargetAlpha
+	vFadeInfo.timeToFade = self.FadeDuration
+
+	UIFrameFade(self.ButtonFader, vFadeInfo)
+end
+
+function Mappy:SetButtonsAlpha(pAlpha)
+	for _, vButton in ipairs(self.MinimapButtons) do
+		vButton:SetAlpha(pAlpha)
+	end
+end
+
+-- Restore faded alpha after other code resets it
+function Mappy:ReapplyButtonsAlpha()
+	local vAlpha = self.ButtonFader:GetAlpha()
+	if vAlpha < 1 then
+		self:SetButtonsAlpha(vAlpha)
+	end
+end
+
 function Mappy.Button_OnHide(self, ...)
 	-- Only act when stacking is active (HookScript is permanent, so use flag)
 	if not self.Mappy_StackingActive then
@@ -2092,6 +2172,7 @@ function Mappy.Button_OnShow(self, ...)
 		return
 	end
 
+	Mappy:RevealButtons()
 	Mappy.SchedulerLib:ScheduleUniqueTask(0, Mappy.ConfigureMinimap, Mappy)
 end
 
@@ -3094,19 +3175,26 @@ function Mappy._AppearancePanel:Construct(pParent)
     self.OptionsHeader:SetPoint("TOPLEFT", self.OptionsLine, 5, 13)
     self.OptionsHeader:SetText("Options")
 
-	-- Hover alpha toggle
+	-- Mouseover alpha toggle
 
 	self.HoverOpaqueCheckbutton = CreateFrame("CheckButton", "MappyHoverOpaqueCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.HoverOpaqueCheckbutton:SetPoint("TOPLEFT", self.OptionsLine, "BOTTOMLEFT", 10, -15)
 	self.HoverOpaqueCheckbutton:SetScript("OnClick", function (self) Mappy:SetMinimapHoverOpaque(self:GetChecked()) end)
-	MappyHoverOpaqueCheckbuttonText:SetText("100% alpha on hover")
+	MappyHoverOpaqueCheckbuttonText:SetText("100% alpha on mouseover")
 
 	-- Alpha ignore
 
 	self.FadeButtonsCheckbutton = CreateFrame("CheckButton", "MappyFadeButtonsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 	self.FadeButtonsCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 0, -25)
 	self.FadeButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeButtons(not self:GetChecked()) end)
-	MappyFadeButtonsCheckbuttonText:SetText("Buttons ignore minimap alpha")
+	MappyFadeButtonsCheckbuttonText:SetText("Buttons ignore minimap alpha sliders")
+
+	-- Buttons on mouseover
+
+	self.AutoHideButtonsCheckbutton = CreateFrame("CheckButton", "MappyAutoHideButtonsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.AutoHideButtonsCheckbutton:SetPoint("TOPLEFT", self.FadeButtonsCheckbutton, "TOPLEFT", 0, -25)
+	self.AutoHideButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoHideButtons(self:GetChecked()) end)
+	MappyAutoHideButtonsCheckbuttonText:SetText("Show buttons ONLY on mouseover")
 
 	-- Quest ring toggle
 
@@ -3148,6 +3236,7 @@ function Mappy._AppearancePanel:OnShow()
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
 	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
+	self.AutoHideButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.AutoHideButtons)
 	self.HideQuestRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideQuestRing)
 	self.HideTaskRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTaskRing)
 	if self.HideArchRingCheckbutton then
