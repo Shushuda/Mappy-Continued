@@ -229,6 +229,10 @@ Mappy.SquareQuestRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareQuestRing
 Mappy.SquareTaskRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareTaskRing"
 Mappy.SquareArchRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareArchRing"
 
+-- Shown ring alpha, 0-255 scale
+-- Stolen from the regular map's defaults, eyeballed to be correct lol
+Mappy.BlobRingAlpha = 128
+
 
 Mappy.LandmarkArrows = {}
 
@@ -653,13 +657,13 @@ function Mappy:ConfigureMinimapOptions()
 	if self.CurrentProfile.HideTaskRing then
 		Minimap:SetTaskBlobRingAlpha(0)
 	else
-		Minimap:SetTaskBlobRingAlpha(128)
+		Minimap:SetTaskBlobRingAlpha(self.BlobRingAlpha)
 	end
 
 	if self.CurrentProfile.HideArchRing then
 		Minimap:SetArchBlobRingAlpha(0)
 	else
-		Minimap:SetArchBlobRingAlpha(128)
+		Minimap:SetArchBlobRingAlpha(self.BlobRingAlpha)
 	end
 
 	self:AdjustBackgroundStyle()
@@ -2044,7 +2048,7 @@ function Mappy:SetHideTaskRing(pHide)
 		Minimap:SetTaskBlobRingAlpha(0)
 	else
 		self.CurrentProfile.HideTaskRing = nil
-		Minimap:SetTaskBlobRingAlpha(128)
+		Minimap:SetTaskBlobRingAlpha(self.BlobRingAlpha)
 	end
 end
 
@@ -2054,7 +2058,7 @@ function Mappy:SetHideArchRing(pHide)
 		Minimap:SetArchBlobRingAlpha(0)
 	else
 		self.CurrentProfile.HideArchRing = nil
-		Minimap:SetArchBlobRingAlpha(128)
+		Minimap:SetArchBlobRingAlpha(self.BlobRingAlpha)
 	end
 end
 
