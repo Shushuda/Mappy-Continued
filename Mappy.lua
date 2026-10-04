@@ -21,9 +21,10 @@ Mappy.StackingInfo = {}
 Mappy.CoordAnchorInfo = {}
 
 Mappy.FadeTarget = nil
-Mappy.FadeDuration = 0.2
+Mappy.FadeDuration = 0.25
 Mappy.IsHovering = false
 Mappy.ButtonHideDelay = 3
+Mappy.ButtonFadeDuration = 0.2
 Mappy.ButtonsHidden = false
 
 Mappy.BlizzardButtonNames = {
@@ -2142,7 +2143,7 @@ function Mappy:FadeButtonsTo(pTargetAlpha)
 	vFadeInfo.mode = "IN"
 	vFadeInfo.startAlpha = self.ButtonFader:GetAlpha()
 	vFadeInfo.endAlpha = pTargetAlpha
-	vFadeInfo.timeToFade = self.FadeDuration
+	vFadeInfo.timeToFade = self.ButtonFadeDuration
 
 	UIFrameFade(self.ButtonFader, vFadeInfo)
 end
