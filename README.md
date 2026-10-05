@@ -19,9 +19,11 @@ Other features include:
 * Option to move the minimap via Edit Mode only
 * Option to move the minimap via addon settings only
 * Automatic stacking of minimap buttons along the minimap OR screen
+* Option to show minimap buttons only on mouseover
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
 * Zooming in and out with the mouse wheel
 * Alpha settings, separate for combat, movement and default state
+* Option to hide the quest/WQ/archaeology border ring
 * Profiles (including being able to set a profile for mounting, dungeon etc)
 * Gathering overlay support for Gatherer and GatherMate
 * Compatibility with MinimapButtonBag Reborn
