@@ -64,6 +64,20 @@ ADDON_LOADED event → AddonLoaded()
 
 Graceful integration with Gatherer, GatherMate/GatherMate2, MBB (MinimapButtonBag Reborn), and FarmHud. These are declared as `OptionalDeps` in the TOC.
 
+### Edit Mode Integration
+
+Blizzard's `EditModeManagerFrame:UpdateLayoutInfo()` re-anchors every Edit Mode frame, `MinimapCluster` included, each time it runs, even when the layout hasn't changed. Settings such as the minimap Size are only reapplied when their value changes. It runs on:
+- `EDIT_MODE_LAYOUTS_UPDATED`: at login, and on every `C_EditMode.SetActiveLayout()` call, including Mappy's own, gamepad mode and layout-switcher addons.
+- `PLAYER_SPECIALIZATION_CHANGED`: spec swaps on retail, and level-ups on Forever.
+- Edit Mode exit (through "revert all changes") and spectate mode.
+
+How Mappy reacts:
+- `EnterEditMode` hook: with addon positioning, switches to the Edit Mode position while editing.
+- `ExitEditMode` hook and `ACTIVE_PLAYER_SPECIALIZATION_CHANGED`: a full refresh in both positioning modes, which also reapplies the size override (`OverrideEditModeSize()`).
+- `UpdateLayoutInfo` post-hook (`EditModeLayoutUpdated()`), addon positioning only: restores the position and size override in the same call, so the Edit Mode position is never drawn, then schedules a full refresh. While Edit Mode is open it skips the instant restore, which would otherwise undo the position being edited. It ignores Edit Mode positioning entirely: in that mode `ConfigureMinimap()` calls `C_EditMode.SetActiveLayout()`, which would re-enter the hook every frame.
+
+Known gap: with Edit Mode positioning, a layout switch from anything other than Edit Mode exit or a spec swap (gamepad mode, layout-switcher addons, spectate) leaves Edit Mode's minimap size in place until the next refresh.
+
 ### Combat Handling
 
 On retail and Forever, none of the minimap frames Mappy touches are protected: `IsProtected()` returns `false` for `Minimap`, `MinimapCluster` and the Blizzard buttons Mappy hides. The combat deferral below is a precaution, not a requirement:
@@ -71,7 +85,7 @@ On retail and Forever, none of the minimap frames Mappy touches are protected: `
 - `ConfigureMinimap()` returns early during combat (`InCombatLockdown()`) and while Edit Mode is active. On a combat login this delays size, position, button hiding and stacking until `PLAYER_REGEN_ENABLED` reschedules it. Its `IsProtected()`/`CanChangeProtectedState()` check can only fire when the combat check would too.
 - `ApplyProtectedInitState()` holds the one-time `Hide`/`SetPoint`/`SetSize`/`RegisterForDrag` calls and runs on the first `ConfigureMinimap()` after combat.
 - Hide setters apply `SetAlpha()` immediately and defer the real `Show()`/`Hide()` until after combat.
-- Edit Mode enter/exit is hooked for compatibility.
+- Edit Mode hooks are described under Edit Mode Integration. The `UpdateLayoutInfo` hook restores position and size straight away, even in combat; the rest of its refresh waits like any other `ConfigureMinimap()` call.
 
 ## Code Conventions
 
@@ -106,7 +120,15 @@ Other branches are for clients Mappy doesn't support, so ignore them. Each branc
 
 For WoW API lookups, prefer `wow-ui-source/` for source code reference. For wiki documentation, restrict web searches to `warcraft.wiki.gg`.
 
-## WoW Midnight (12.0) and Forever (1.60.1) Secret Values System
+## WoW Forever Client
+
+Forever is a Classic-style game on a client close to retail. Retail APIs and events exist there, but some mean different things:
+- **Talents are vanilla-style:** three talent trees per class and no retail specializations, with the tree names standing in for spec names. The trees are built on retail's trait system (`C_Traits`).
+- **Two loadout slots ("spec groups")** are swapped with `C_SpecializationInfo.SetActiveSpecGroup()`. Blizzard's Forever talent UI treats `ACTIVE_PLAYER_SPECIALIZATION_CHANGED` as that swap; this hasn't been checked in game.
+- **Levelling up fires `PLAYER_SPECIALIZATION_CHANGED`**, seen in game at level 10+. Edit Mode reapplies its layout on that event (see Edit Mode Integration).
+- **Spending a talent point** fires only `TRAIT_CONFIG_UPDATED` and `PLAYER_TALENT_UPDATE`, seen in game.
+
+## WoW Midnight (aka Retail; 12.0+) and Forever (aka Camelot; 1.60.1+) Secret Values System
 
 ### When Aura Data Becomes Secret
 | Context | Aura Data |

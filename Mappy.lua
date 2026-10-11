@@ -433,6 +433,9 @@ function Mappy:InitializeMinimap()
     -- Apply Edit Mode positioning on enter to avoid positioning issues
     hooksecurefunc(EditModeManagerFrame, "EnterEditMode", self.EditModeEnter)
 
+    -- Reapply addon positioning after Blizzard reapplies the Edit Mode layout (level up etc)
+    hooksecurefunc(EditModeManagerFrame, "UpdateLayoutInfo", self.EditModeLayoutUpdated)
+
 	self:RegenEnabled()
 
 	-- Schedule the configuration (includes deferred protected-state init)
@@ -1269,6 +1272,16 @@ function Mappy:SetMinimapSize(pSize)
 	self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 end
 
+function Mappy:OverrideEditModeSize()
+    -- Override Edit Mode size
+    MinimapCluster.MinimapContainer:SetScale(1)
+
+    -- Override day/night button scaling (Forever client)
+    if MinimapCluster.DielFrame then
+        MinimapCluster.DielFrame:SetScale(1)
+    end
+end
+
 function Mappy:ConfigureMinimap()
 	-- Bail out if the minimap is in a protected state
 	if MinimapCluster:IsProtected() and not MinimapCluster:CanChangeProtectedState() then
@@ -1301,13 +1314,7 @@ function Mappy:ConfigureMinimap()
             EditModeManagerFrame.layoutInfo.activeLayout)
     end
 
-    -- Override Edit Mode size
-    MinimapCluster.MinimapContainer:SetScale(1)
-
-    -- Override day/night button scaling (Forever client)
-    if MinimapCluster.DielFrame then
-        MinimapCluster.DielFrame:SetScale(1)
-    end
+    self:OverrideEditModeSize()
 
     if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
 	    Minimap:SetWidth(self.CurrentProfile.MinimapSize)
@@ -1821,6 +1828,20 @@ function Mappy:EditModeEnter()
     if Mappy.CurrentProfile.UseAddonPosition then
         C_EditMode.SetActiveLayout(
             EditModeManagerFrame.layoutInfo.activeLayout)
+    end
+end
+
+function Mappy:EditModeLayoutUpdated()
+    -- Addon positioning only, ConfigureMinimap's SetActiveLayout would loop back here
+    if Mappy.CurrentProfile.UseAddonPosition then
+        -- Undo Edit Mode's position and size instantly (unless editing)
+        -- No scheduler to avoid one frame visual bounce between positions
+        if not EditModeManagerFrame:IsEditModeActive() then
+            Mappy:SetFramePosition(MinimapCluster, Mappy.CurrentProfile)
+            Mappy:OverrideEditModeSize()
+        end
+
+        Mappy:LoadProfile(Mappy.CurrentProfile)
     end
 end
 
