@@ -1190,22 +1190,20 @@ function Mappy:StackButton(pButton, pNextButton)
     end
 
 	-- Stack the button
-	
-	MinimapCluster:SetAlpha(1)
-	
+
 	pButton:SetParent(MinimapCluster)
 	pButton:SetAlpha(1)
 	Mappy.SetFrameLevel(pButton, self.StackingInfo.ButtonFrameLevel)
-	
+
 	if not pButton.Mappy_ClearAllPoints then
 		self:DebugMark()
 		self:DebugMessage("Mappy_ClearAllPoints is nil.  Name is %s", pButton:GetName() or "nil")
 		self:DebugTable("pButton", pButton)
 		self:DebugStack()
 	end
-	
+
 	pButton:Mappy_ClearAllPoints()
-	
+
 	if not self.StackingInfo.PreviousButton then
 		pButton:Mappy_SetPoint(
 				"CENTER",
@@ -1213,7 +1211,7 @@ function Mappy:StackButton(pButton, pNextButton)
 				self.StackingInfo.Corner,
 				self.StackingInfo.CornerInfo.HorizInsetDir * self.StackingInfo.StackingInsetX,
 				self.StackingInfo.CornerInfo.VertInsetDir * self.StackingInfo.StackingInsetY)
-		
+
 		self.StackingInfo.PreviousButton = pButton
 	else
 		pButton:Mappy_SetPoint(
@@ -1223,7 +1221,7 @@ function Mappy:StackButton(pButton, pNextButton)
 				self.StackingInfo.CornerInfo.HorizGap + MiniOffsetH,
                 self.StackingInfo.CornerInfo.VertGap + MiniOffsetV)
 	end
-	
+
 	self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vSpaceUsed
 	self.StackingInfo.PreviousButton = pButton
 end
