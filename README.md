@@ -21,6 +21,7 @@ Other features include:
 * Automatic stacking of minimap buttons along the minimap OR screen
 * Option to show minimap buttons only on mouseover
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
+* Custom square textures for certain Blizzard overlays
 * Zooming in and out with the mouse wheel
 * Alpha settings, separate for combat, movement and default state
 * Option to hide the quest/WQ/archaeology border ring
