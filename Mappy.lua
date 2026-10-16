@@ -16,6 +16,9 @@ Mappy.FarmHudEnabled = nil
 -- 12.0.7: Blizzard removed Minimap:SetBlipTexture() from API
 Mappy.enableBlips = false
 
+-- WoW Forever client
+Mappy.IsForeverClient = WOW_PROJECT_ID == WOW_PROJECT_CAMELOT
+
 Mappy.StackingInfo = {}
 
 Mappy.CoordAnchorInfo = {}
@@ -28,35 +31,36 @@ Mappy.ButtonFadeDuration = 0.2
 Mappy.ButtonsHidden = false
 
 Mappy.BlizzardButtonNames = {
+    "MinimapCluster.DielFrame", -- Forever client
     "GameTimeFrame",
-    MinimapCluster.IndicatorFrame.MailFrame,
-    MinimapCluster.IndicatorFrame.CraftingOrderFrame,
-    MinimapCluster.Tracking,
+    "MinimapCluster.IndicatorFrame.MailFrame",
+    "MinimapCluster.IndicatorFrame.CraftingOrderFrame",
+    "MinimapCluster.Tracking",
 	"MiniMapBattlefieldFrame",
 	"MiniMapMeetingStoneFrame",
 	"MiniMapVoiceChatFrame",
 	"FeedbackUIButton",
-    MinimapCluster.InstanceDifficulty,
+    "MinimapCluster.InstanceDifficulty",
 	"MiniMapLFGFrame",
 	"GuildInstanceDifficulty",
     "ExpansionLandingPageMinimapButton",
     "AddonCompartmentFrame",
 }
 
--- Day/night button (Forever client)
--- Insert prevents premature stop on a nil entry on the retail client
-if MinimapCluster.DielFrame then
-    table.insert(Mappy.BlizzardButtonNames, 1, MinimapCluster.DielFrame)
-end
-
 Mappy.BlizzardMinimalistButtons = {
     [GameTimeFrame] = true,
     [MinimapCluster.IndicatorFrame.MailFrame] = true,
-    [MinimapCluster.IndicatorFrame.CraftingOrderFrame] = true,
     [MinimapCluster.Tracking] = true,
-    [MinimapCluster.InstanceDifficulty] = true,
     [AddonCompartmentFrame] = true,
 }
+
+-- Retail client
+if MinimapCluster.IndicatorFrame.CraftingOrderFrame then
+    Mappy.BlizzardMinimalistButtons[MinimapCluster.IndicatorFrame.CraftingOrderFrame] = true
+end
+if MinimapCluster.InstanceDifficulty then
+    Mappy.BlizzardMinimalistButtons[MinimapCluster.InstanceDifficulty] = true
+end
 
 Mappy.OtherAddonButtonNames = {
 	"CT_RASets_Button",
@@ -226,6 +230,8 @@ Mappy.ObjectIconsHighlightPath = ""
 
 Mappy.HousingIndoorBgPath = "Interface\\Addons\\Mappy\\Textures\\UIHudMinimapHousingIndoorStaticBg"
 
+Mappy.MinimapMaskPath = "Interface\\Addons\\Mappy\\Textures\\MinimapMask"
+
 Mappy.SquareQuestRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareQuestRing"
 Mappy.SquareTaskRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareTaskRing"
 Mappy.SquareArchRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareArchRing"
@@ -254,7 +260,12 @@ function Mappy:AddonLoaded(pEventID, pAddonName)
 	if not gMappy_Settings then
 		self:InitializeSettings()
 	end
-	
+
+	-- Remove unused AttachmentPosition, old versions saved a full copy of UIParent in it
+	for _, vProfile in pairs(gMappy_Settings.Profiles) do
+		vProfile.AttachmentPosition = nil
+	end
+
 	--
 	
 	self.CurrentProfile = gMappy_Settings.Profiles[gMappy_Settings.CurrentProfileName]
@@ -342,13 +353,6 @@ function Mappy:InitializeSettings()
 				HideDiel = false,
 				FlashGatherNodes = true,
                 NormalGatherNodes = false, -- use large icons
-				AttachmentPosition = {
-					Point = "TOPRIGHT",
-					RelativeTo = UIParent,
-					RelativePoint = "TOPRIGHT",
-					OffsetX = -80,
-					OffsetY = -50
-				},
                 UseAddonPosition = false,
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
@@ -378,10 +382,23 @@ function Mappy:InitializeMinimap()
 
 	self:InitializeSquareShape()
 
+	-- Zone text background, first one found: 12.1.5, 12.1.7, Forever
+	-- TODO: Remove MinimapCluster.BorderTop once 12.1.7 is live
+	self.ZoneTextBorder = MinimapCluster.BorderTop
+		or MinimapCluster.ZoneTextButton.BorderTop
+		or MinimapCluster.ZoneTextButton.StateTexture
+
 	-- Visually hide elements immediately via SetAlpha
 	-- The real Hide() calls happen in ApplyProtectedInitState when out of combat
-	MinimapCluster.BorderTop:SetAlpha(0)
+	if self.ZoneTextBorder then
+		self.ZoneTextBorder:SetAlpha(0)
+	end
 	Minimap.ZoomHitArea:SetAlpha(0)
+
+	-- Remove the zone text hover glow (Forever client)
+	if MinimapCluster.ZoneTextButton.AddTexture then
+		MinimapCluster.ZoneTextButton.AddTexture:SetTexture(nil)
+	end
 
     -- Workaround for self:GetParent():Layout() errors after 10.0.5
     -- Minimap.lua:376
@@ -436,6 +453,24 @@ function Mappy:InitializeMinimap()
     -- Reapply addon positioning after Blizzard reapplies the Edit Mode layout (level up etc)
     hooksecurefunc(EditModeManagerFrame, "UpdateLayoutInfo", self.EditModeLayoutUpdated)
 
+    -- Stop minimap rotation
+    self:StopMinimapRotation()
+    -- Also when settings change
+    self.EventLib:RegisterEvent("CVAR_UPDATE", self.CVarUpdated, self)
+
+    -- Stop rotation when FarmHud's HUD hides
+    if Mappy.FarmHudEnabled then
+        FarmHud:HookScript("OnHide", function() Mappy:StopMinimapRotation() end)
+    end
+
+    -- TODO: Remove guard once 12.1.7 is live
+    if MinimapCluster.UpdateMinimapConfig then
+        -- Undo the round minimap art whenever rotation changes (Forever client)
+        hooksecurefunc(MinimapCluster, "UpdateMinimapConfig", function() Mappy:RestoreSquareSkin() end)
+        -- Also once now
+        self:RestoreSquareSkin()
+    end
+
 	self:RegenEnabled()
 
 	-- Schedule the configuration (includes deferred protected-state init)
@@ -454,7 +489,9 @@ function Mappy:ApplyProtectedInitState()
 	self.ProtectedInitApplied = true
 
 	-- Hide elements
-	MinimapCluster.BorderTop:Hide()
+	if self.ZoneTextBorder then
+		self.ZoneTextBorder:Hide()
+	end
 	Minimap.ZoomHitArea:Hide()
 
 	-- Enable dragging
@@ -498,12 +535,11 @@ function Mappy:FindMinimapButtons()
     for _, vButtonName in ipairs(self.BlizzardButtonNames) do
         self.IgnoreFrames[vButtonName] = true
 
-        local vButton
-        -- filter frame names from frame globals
-        if type(vButtonName) == "string" then
-            vButton = _G[vButtonName]
-        else
-            vButton = vButtonName
+        -- Find the frame by name; nil if missing in this client
+        -- Turn combined names with dots into actual frames ("MinimapCluster.Tracking" etc)
+        local vButton = _G
+        for vKey in vButtonName:gmatch("[^.]+") do
+            vButton = vButton and vButton[vKey]
         end
 
         if vButton then
@@ -716,16 +752,18 @@ function Mappy:EnlargeMinimalistButtons()
     MailFrameBG:SetPoint("CENTER", MiniMapMailIcon, "CENTER")
     MailFrameBG:SetSize(25,25)
 
-    -- crafting orders
-    local CraftingOrderFrame = MinimapCluster.IndicatorFrame.CraftingOrderFrame:CreateTexture(nil, "OVERLAY")
-    CraftingOrderFrame:SetTexture(136430)
-    CraftingOrderFrame:SetPoint("CENTER", MiniMapCraftingOrderIcon, "CENTER", 10, -10)
-    CraftingOrderFrame:SetSize(53,53)
+    -- crafting orders (Retail client)
+    if MinimapCluster.IndicatorFrame.CraftingOrderFrame then
+        local CraftingOrderFrame = MinimapCluster.IndicatorFrame.CraftingOrderFrame:CreateTexture(nil, "OVERLAY")
+        CraftingOrderFrame:SetTexture(136430)
+        CraftingOrderFrame:SetPoint("CENTER", MiniMapCraftingOrderIcon, "CENTER", 10, -10)
+        CraftingOrderFrame:SetSize(53,53)
 
-    local CraftingOrderFrameBG = MinimapCluster.IndicatorFrame.CraftingOrderFrame:CreateTexture(nil, "BACKGROUND")
-    CraftingOrderFrameBG:SetTexture(136467)
-    CraftingOrderFrameBG:SetPoint("CENTER", MiniMapCraftingOrderIcon, "CENTER")
-    CraftingOrderFrameBG:SetSize(25,25)
+        local CraftingOrderFrameBG = MinimapCluster.IndicatorFrame.CraftingOrderFrame:CreateTexture(nil, "BACKGROUND")
+        CraftingOrderFrameBG:SetTexture(136467)
+        CraftingOrderFrameBG:SetPoint("CENTER", MiniMapCraftingOrderIcon, "CENTER")
+        CraftingOrderFrameBG:SetSize(25,25)
+    end
 
     -- tracking
     local Tracking = MinimapCluster.Tracking:CreateTexture(nil, "OVERLAY")
@@ -755,7 +793,7 @@ end
 
 function Mappy:AdjustBackgroundStyle()
 	if self.CurrentProfile.HideBorder then
-				MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 0.0)
+		MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 0.0)
 		MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 0.0, 0.0)
 	else
 		MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75)
@@ -766,7 +804,7 @@ end
 -- Combat-safe portion only
 -- Protected positioning ops are in ApplyProtectedInitState()
 function Mappy:InitializeSquareShape()
-	Minimap:SetMaskTexture("Interface\\Addons\\Mappy\\Textures\\MinimapMask")
+	Minimap:SetMaskTexture(self.MinimapMaskPath)
 
 	-- Pre-load ring textures into engine cache for Set*BlobRingTexture
 	local vRingPreloader = Minimap:CreateTexture(nil, "BACKGROUND")
@@ -812,6 +850,28 @@ function Mappy:InitializeSquareShape()
     MinimapZoneText:SetJustifyH("CENTER")
 
 	MinimapBackdrop:ApplyBackdrop()
+end
+
+-- Stop minimap rotation
+-- But let FarmHud do whatever
+function Mappy:StopMinimapRotation()
+	if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) and GetCVarBool("rotateMinimap") then
+		SetCVar("rotateMinimap", false)
+	end
+end
+
+-- Edit Mode writes the setting at login and whenever it's changed
+function Mappy:CVarUpdated(pEventID, pName)
+	if pName == "rotateMinimap" then
+		self:StopMinimapRotation()
+	end
+end
+
+-- Undo the round mask and frame art applied on rotation changes (Forever client)
+function Mappy:RestoreSquareSkin()
+	Minimap:SetMaskTexture(self.MinimapMaskPath)
+	MinimapCompassTexture:SetTexture(nil)
+	MinimapCompassTextureUnderlay:Hide()
 end
 
 function Mappy:SetCounterClockwise(pCCW)
@@ -1378,8 +1438,8 @@ function Mappy:ConfigureMinimap()
     if MinimapCluster.Tracking then
          MinimapCluster.Tracking:ClearAllPoints()
     end
-    if AddonCompartment then
-        AddonCompartment:ClearAllPoints()
+    if AddonCompartmentFrame then
+        AddonCompartmentFrame:ClearAllPoints()
     end
     if MinimapCluster.InstanceDifficulty then
         MinimapCluster.InstanceDifficulty:ClearAllPoints()
@@ -1394,7 +1454,7 @@ function Mappy:ConfigureMinimap()
 	for _, vNextButton in pairs(self.MinimapButtons) do
 
         -- handle special case (avoid showing empty box)
-        if vButton == MinimapCluster.InstanceDifficulty then
+        if vButton and vButton == MinimapCluster.InstanceDifficulty then
             local _, instanceType, difficulty, _, _, _, _, _, _ = GetInstanceInfo()
 
             if not difficulty or not ( instanceType == "raid"
@@ -1408,6 +1468,11 @@ function Mappy:ConfigureMinimap()
                 vButton:Show()
             end
         end
+
+        -- TODO: Do the same for Delves but with their special stupid function checker
+        -- since they don't work with GetInstanceInfo()
+        -- Reuse my Delve code I did for DynamicCam situations PR
+        -- Otherwise it stays empty on exiting the Delve and it pisses me off
 
 		if vNextButton.Mappy_SetPoint then
 			if vButton and vButton:IsVisible() then
@@ -3230,20 +3295,19 @@ function Mappy._AppearancePanel:Construct(pParent)
 	self.HideQuestRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideQuestRing(self:GetChecked()) end)
 	MappyHideQuestRingCheckbuttonText:SetText("Hide quest area border")
 
-	-- World quest ring toggle
-	-- TODO: Tentatively left, might be redundant in Forever, check if needed
+	-- World quest ring toggle (Retail client)
+	-- Tentatively hidden on Forever since what would even use that?
 
-	self.HideTaskRingCheckbutton = CreateFrame("CheckButton", "MappyHideTaskRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.HideTaskRingCheckbutton:SetPoint("TOPLEFT", self.HideQuestRingCheckbutton, "TOPLEFT", 0, -25)
-	self.HideTaskRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTaskRing(self:GetChecked()) end)
-	MappyHideTaskRingCheckbuttonText:SetText("Hide world quest area border")
+	if not Mappy.IsForeverClient then
+		self.HideTaskRingCheckbutton = CreateFrame("CheckButton", "MappyHideTaskRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.HideTaskRingCheckbutton:SetPoint("TOPLEFT", self.HideQuestRingCheckbutton, "TOPLEFT", 0, -25)
+		self.HideTaskRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTaskRing(self:GetChecked()) end)
+		MappyHideTaskRingCheckbuttonText:SetText("Hide world quest area border")
+	end
 
-	-- Archaeology ring toggle (retail client)
-	-- TODO: Swap Diel detection for something more proper, like interface number or something,
-	-- and use that globally for client checks
-	-- (afaik atm Forever beta returns retail var for client checks so can't use that unless they fix lol)
+	-- Archaeology ring toggle (Retail client)
 
-	if not MinimapCluster.DielFrame then
+	if not Mappy.IsForeverClient then
 		self.HideArchRingCheckbutton = CreateFrame("CheckButton", "MappyHideArchRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 		self.HideArchRingCheckbutton:SetPoint("TOPLEFT", self.HideTaskRingCheckbutton, "TOPLEFT", 0, -25)
 		self.HideArchRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideArchRing(self:GetChecked()) end)
@@ -3265,7 +3329,9 @@ function Mappy._AppearancePanel:OnShow()
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
 	self.AutoHideButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.AutoHideButtons)
 	self.HideQuestRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideQuestRing)
-	self.HideTaskRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTaskRing)
+	if self.HideTaskRingCheckbutton then
+		self.HideTaskRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTaskRing)
+	end
 	if self.HideArchRingCheckbutton then
 		self.HideArchRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideArchRing)
 	end
