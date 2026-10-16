@@ -94,6 +94,7 @@ On retail and Forever, none of the minimap frames Mappy touches are protected: `
 - **No localization:** All UI strings are hardcoded in English
 - **No formal error handling:** Relies on WoW's built-in error catching
 - **TOC versioning:** Interface version and addon Version are updated manually in `Mappy.toc`
+- **Supported clients:** only the latest retail and Forever releases. Code needed only for an outgoing release gets a `TODO` to remove it once the new release is live.
 
 ## Reference Documentation
 
@@ -127,6 +128,9 @@ Forever is a Classic-style game on a client close to retail. Retail APIs and eve
 - **Two loadout slots ("spec groups")** are swapped with `C_SpecializationInfo.SetActiveSpecGroup()`. Blizzard's Forever talent UI treats `ACTIVE_PLAYER_SPECIALIZATION_CHANGED` as that swap; this hasn't been checked in game.
 - **Levelling up fires `PLAYER_SPECIALIZATION_CHANGED`**, seen in game at level 10+. Edit Mode reapplies its layout on that event (see Edit Mode Integration).
 - **Spending a talent point** fires only `TRAIT_CONFIG_UPDATED` and `PLAYER_TALENT_UPDATE`, seen in game.
+- **Client detection:** `Mappy.IsForeverClient` (`WOW_PROJECT_ID == WOW_PROJECT_CAMELOT`) is only for client-specific behavior. Missing frames use existence checks.
+- **Missing frames:** Forever 70425 omits `MinimapCluster.InstanceDifficulty`, `IndicatorFrame.CraftingOrderFrame` and `BorderTop`; its header background is `ZoneTextButton.StateTexture`.
+- **Rotation:** Mappy keeps the `rotateMinimap` CVar off with `StopMinimapRotation()`: at startup, on every `CVAR_UPDATE`, and when FarmHud's HUD hides (it's left alone while the HUD is shown). Edit Mode stores Rotate Minimap in the layout and writes the CVar at every login and whenever it changes, so the layout keeps the player's choice and removing Mappy restores it. `C_Minimap.SetIgnoreRotateMinimap()` isn't enough, both seen in game: addons that draw their own minimap icons read the CVar and kept rotating them, and the game resets the ignore switch on loading screens. With the CVar off, loading screens don't bring the compass texture back, but turning rotation off doesn't clear a compass already shown (seen in game). Forever re-skins the minimap (round mask, frame art, underlay ring) in `MinimapCluster:UpdateMinimapConfig()` on every `rotateMinimap` change, and once in `OnLoad()` before addons load, so Mappy hooks it and also undoes it once at startup.
 
 ## WoW Midnight (aka Retail; 12.0+) and Forever (aka Camelot; 1.60.1+) Secret Values System
 
