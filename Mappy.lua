@@ -766,7 +766,7 @@ function Mappy:EnlargeMinimalistButtons()
     end
 
     -- tracking
-    local Tracking = MinimapCluster.Tracking:CreateTexture(nil, "OVERLAY")
+    local Tracking = MinimapCluster.Tracking.Button:CreateTexture(nil, "OVERLAY")
     Tracking:SetTexture(136430)
     Tracking:SetPoint("CENTER", MinimapCluster.Tracking.Button, "CENTER", 10, -10)
     Tracking:SetSize(53,53)
@@ -789,6 +789,30 @@ function Mappy:EnlargeMinimalistButtons()
 
     -- Stop it from shifting on click
     AddonCompartmentFrame:SetPushedTextOffset(0, 0)
+
+    -- Fill the inside of the borders to cover Blizzard's own button borders (Forever client)
+    if Mappy.IsForeverClient then
+        -- Calendar border is bigger, so its center sits slightly up and left
+        self:ScaleButtonArt(GameTimeFrame, GameTimeFrame, 1.1, -1, 1)
+        self:ScaleButtonArt(AddonCompartmentFrame, AddonCompartmentFrame.Text, 1.25, 0, 0)
+
+        -- TODO: Scale the mail icon too, untested since it only shows with unread mail
+        -- The mail border is anchored to MiniMapMailIcon, so scaling the icon drags the border down and right
+        -- Either accept the shift, or pin the border to the icon's current center first
+    end
+end
+
+-- Center a button's art on its border and scale it
+-- SetAtlas resets the size on every hover and click
+-- But not scale!
+function Mappy:ScaleButtonArt(pButton, pCenter, pScale, pOffsetX, pOffsetY)
+    pButton.StateTexture:ClearAllPoints()
+    pButton.StateTexture:SetPoint("CENTER", pCenter, "CENTER", pOffsetX, pOffsetY)
+    pButton.StateTexture:SetScale(pScale)
+
+    pButton.AddTexture:ClearAllPoints()
+    pButton.AddTexture:SetPoint("CENTER", pCenter, "CENTER", pOffsetX, pOffsetY)
+    pButton.AddTexture:SetScale(pScale)
 end
 
 function Mappy:AdjustBackgroundStyle()
