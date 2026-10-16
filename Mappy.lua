@@ -849,6 +849,9 @@ function Mappy:InitializeSquareShape()
     MinimapZoneText:SetAllPoints(MinimapCluster.ZoneTextButton)
     MinimapZoneText:SetJustifyH("CENTER")
 
+    -- Use retail's zone text size (to override Forever's smaller font)
+    MinimapZoneText:SetFont(GameFontNormal:GetFont())
+
 	MinimapBackdrop:ApplyBackdrop()
 end
 
