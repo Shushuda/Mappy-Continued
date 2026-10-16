@@ -313,7 +313,7 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 FadeButtons = false,
-                AutoHideButtons = false,
+                AutoHideButtons = true,
                 HideQuestRing = false,
                 HideTaskRing = false,
                 HideArchRing = false,
@@ -354,7 +354,7 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 FadeButtons = false,
-                AutoHideButtons = false,
+                AutoHideButtons = true,
                 HideQuestRing = false,
                 HideTaskRing = false,
                 HideArchRing = false,
@@ -748,6 +748,9 @@ function Mappy:EnlargeMinimalistButtons()
     AddonCompartmentBG:SetTexture(136467)
     AddonCompartmentBG:SetPoint("CENTER", AddonCompartmentFrame.Text, "CENTER")
     AddonCompartmentBG:SetSize(25,25)
+
+    -- Stop it from shifting on click
+    AddonCompartmentFrame:SetPushedTextOffset(0, 0)
 end
 
 function Mappy:AdjustBackgroundStyle()
