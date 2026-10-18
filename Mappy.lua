@@ -74,6 +74,9 @@ Mappy.IgnoreFrames = {
 	MinimapToggleButton = true,
 	MinimapZoneTextButton = true,
 
+	-- Group Finder eye, only stacked if enabled in options (Forever client)
+	QueueStatusButton = true,
+
 	CT_RASetsFrame = true,
 }
 
@@ -323,11 +326,13 @@ function Mappy:InitializeSettings()
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
-                FadeButtons = false,
+                FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = false,
                 HideTaskRing = false,
                 HideArchRing = false,
+                StackGroupFinder = true,
+                AlwaysShowGroupFinder = true,
 			},
 			gather =
 			{
@@ -357,11 +362,13 @@ function Mappy:InitializeSettings()
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
-                FadeButtons = false,
+                FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = false,
                 HideTaskRing = false,
                 HideArchRing = false,
+                StackGroupFinder = true,
+                AlwaysShowGroupFinder = true,
 			},
 		},
 	}
@@ -447,7 +454,7 @@ function Mappy:InitializeMinimap()
     -- Reapply addon positioning and minimap size after Edit Mode exit
     hooksecurefunc(EditModeManagerFrame, "ExitEditMode", self.EditModeExit)
 
-    -- Apply Edit Mode positioning on enter to avoid positioning issues
+    -- Apply Edit Mode positioning on enter to avoid positioning issues (select frames only)
     hooksecurefunc(EditModeManagerFrame, "EnterEditMode", self.EditModeEnter)
 
     -- Reapply addon positioning after Blizzard reapplies the Edit Mode layout (level up etc)
@@ -565,12 +572,12 @@ function Mappy:FindMinimapButtons()
     end
 end
 
-function Mappy:RegisterMinimapButton(pButton, pAlwaysStack)
+function Mappy:RegisterMinimapButton(pButton, pAlwaysStack, pIndex)
 	if self.MinimapButtonsByFrame[pButton] then
 		return
 	end
-	
-	table.insert(self.MinimapButtons, pButton)
+
+	table.insert(self.MinimapButtons, pIndex or #self.MinimapButtons + 1, pButton)
 	self.MinimapButtonsByFrame[pButton] = true
 	
 	for vName, vFunction in pairs(self._MinimapButton) do
@@ -589,6 +596,13 @@ function Mappy:ConfigureMinimapOptions()
 	if InCombatLockdown() then
 		self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 		return
+	end
+
+	-- Forever client
+	if Mappy.IsForeverClient and self.CurrentProfile.StackGroupFinder then
+		self:StackGroupFinder()
+	else
+		self:ReleaseGroupFinder()
 	end
 
 	if self.CurrentProfile.AutoArrangeButtons then
@@ -720,10 +734,64 @@ end
 
 function Mappy:DisableButtonStacking()
 	self.StackingEnabled = false
-	
+
 	for _, vButton in ipairs(self.MinimapButtons) do
 		vButton:Mappy_SetStackingEnabled(false)
 	end
+end
+
+-- Stack the Group Finder eye like a Blizzard button (Forever client)
+function Mappy:StackGroupFinder()
+    if self.MinimapButtonsByFrame[QueueStatusButton] then
+        return
+    end
+
+    local vIndex = 1
+    for vButtonIndex, vButton in ipairs(self.MinimapButtons) do
+        if vButton.Mappy_AlwaysStack then
+            vIndex = vButtonIndex + 1
+        end
+    end
+
+    self:RegisterMinimapButton(QueueStatusButton, true, vIndex)
+    QueueStatusButton:SetScale(1)
+end
+
+-- Give the Group Finder eye back to Edit Mode (Forever client)
+function Mappy:ReleaseGroupFinder()
+    if not self.MinimapButtonsByFrame[QueueStatusButton] then
+        return
+    end
+
+    for vIndex, vButton in ipairs(self.MinimapButtons) do
+        if vButton == QueueStatusButton then
+            table.remove(self.MinimapButtons, vIndex)
+            break
+        end
+    end
+    self.MinimapButtonsByFrame[QueueStatusButton] = nil
+
+    -- Remove the replacements, it will fallback to Blizzard's stuff
+    -- Assigning the originals directly would leave taint
+    QueueStatusButton.SetPoint = nil
+    QueueStatusButton.ClearAllPoints = nil
+    QueueStatusButton.Mappy_SetPoint = nil
+    QueueStatusButton.Mappy_ClearAllPoints = nil
+    QueueStatusButton.Mappy_SavedAnchors = nil
+    QueueStatusButton.Mappy_StackingActive = false
+
+    QueueStatusButton:SetParent(UIParent)
+    -- Keep the eye art under the clicky button area
+    QueueStatusButton.Eye:SetFrameLevel(QueueStatusButton:GetFrameLevel() - 1)
+    QueueStatusButton:SetIgnoreParentAlpha(false)
+    QueueStatusButton:SetAlpha(1)
+
+    -- Set Edit Mode size first, the position offsets depend on it
+    -- Guard in case Edit Mode didn't fill the layout info yet (during login)
+    if QueueStatusButton.systemInfo then
+        QueueStatusButton:SetScale(QueueStatusButton:GetSettingValue(Enum.EditModeGroupFinderSetting.Size) / 100)
+        self:ApplyEditModeAnchor(QueueStatusButton)
+    end
 end
 
 -- create borders and enlarge these new mini buttons
@@ -1368,6 +1436,11 @@ function Mappy:OverrideEditModeSize()
     if MinimapCluster.DielFrame then
         MinimapCluster.DielFrame:SetScale(1)
     end
+
+    -- Override Group Finder eye scaling while stacked (Forever client)
+    if self.MinimapButtonsByFrame[QueueStatusButton] then
+        QueueStatusButton:SetScale(1)
+    end
 end
 
 function Mappy:ConfigureMinimap()
@@ -1403,6 +1476,9 @@ function Mappy:ConfigureMinimap()
     end
 
     self:OverrideEditModeSize()
+
+    -- Recalculate the Group Finder's default position at Mappy's scale (Forever client)
+    EventRegistry:TriggerEvent("Minimap.OnScaleUpdated", 1)
 
     if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
 	    Minimap:SetWidth(self.CurrentProfile.MinimapSize)
@@ -1453,6 +1529,11 @@ function Mappy:ConfigureMinimap()
         self.CoordString:SetTextScale(self.CurrentProfile.CoordSize or 1)
     end
 
+    self:StackMinimapButtons()
+    self:AdjustAlpha()
+end
+
+function Mappy:StackMinimapButtons()
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
     end
@@ -1514,7 +1595,12 @@ function Mappy:ConfigureMinimap()
 		self:StackButton(vButton, nil)
 	end
 
-	self:AdjustAlpha()
+	-- Keep the Group Finder eye art under the clicky button area (Forever client)
+	if self.MinimapButtonsByFrame[QueueStatusButton] then
+		QueueStatusButton.Eye:SetFrameLevel(QueueStatusButton:GetFrameLevel() - 1)
+	end
+
+	-- Stacking sets buttons to full alpha, fade them back
 	self:ReapplyButtonsAlpha()
 end
 
@@ -1918,9 +2004,16 @@ function Mappy:EditModeExit()
 end
 
 function Mappy:EditModeEnter()
+    -- Move the minimap to its Edit Mode position
     if Mappy.CurrentProfile.UseAddonPosition then
-        C_EditMode.SetActiveLayout(
-            EditModeManagerFrame.layoutInfo.activeLayout)
+        Mappy:ApplyEditModeAnchor(MinimapCluster)
+    end
+
+    -- Let Edit Mode move the Group Finder eye, it's restacked on exit
+    -- Forever client
+    if Mappy.MinimapButtonsByFrame[QueueStatusButton] then
+        Mappy:ReleaseGroupFinder()
+        Mappy:StackMinimapButtons()
     end
 end
 
@@ -2218,6 +2311,25 @@ function Mappy:SetAutoHideButtons(pValue)
 	self:UpdateButtonAutoHide()
 end
 
+function Mappy:SetStackGroupFinder(pEnable)
+	if pEnable then
+		self.CurrentProfile.StackGroupFinder = true
+	else
+		self.CurrentProfile.StackGroupFinder = nil
+	end
+
+	self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+end
+
+function Mappy:SetAlwaysShowGroupFinder(pValue)
+	if self.DisableUpdates then return end
+
+	self.CurrentProfile.AlwaysShowGroupFinder = pValue
+	if self.MinimapButtonsByFrame[QueueStatusButton] then
+		QueueStatusButton:SetAlpha(pValue and 1 or self.ButtonFader:GetAlpha())
+	end
+end
+
 -- Show buttons on mouseover, hide after a delay
 function Mappy:UpdateButtonAutoHide()
 	if self.CurrentProfile.AutoHideButtons and not self.IsHovering then
@@ -2264,7 +2376,10 @@ end
 
 function Mappy:SetButtonsAlpha(pAlpha)
 	for _, vButton in ipairs(self.MinimapButtons) do
-		vButton:SetAlpha(pAlpha)
+		-- Keep the Group Finder eye visible if enabled (Forever client)
+		if not (vButton == QueueStatusButton and self.CurrentProfile.AlwaysShowGroupFinder) then
+			vButton:SetAlpha(pAlpha)
+		end
 	end
 end
 
@@ -2609,6 +2724,25 @@ function Mappy:SetFramePosition(pFrame, pPosition)
 				pPosition.OffsetX or -32,
 				pPosition.OffsetY or -32)
 	end
+end
+
+-- Move a frame to its saved Edit Mode position
+-- Same math as Blizzard's ApplySystemAnchor, without calling into Edit Mode
+function Mappy:ApplyEditModeAnchor(pFrame)
+    local vSystemInfo = pFrame.systemInfo
+    if not vSystemInfo then
+        return
+    end
+
+    local vClearAllPoints = pFrame.Mappy_ClearAllPoints or pFrame.ClearAllPoints
+    local vSetPoint = pFrame.Mappy_SetPoint or pFrame.SetPoint
+    local vScale = pFrame:GetScale()
+
+    vClearAllPoints(pFrame)
+    for _, vAnchor in ipairs({vSystemInfo.anchorInfo, vSystemInfo.anchorInfo2}) do
+        vSetPoint(pFrame, vAnchor.point, vAnchor.relativeTo, vAnchor.relativePoint,
+            vAnchor.offsetX / vScale, vAnchor.offsetY / vScale)
+    end
 end
 
 function Mappy:PositionChanged()
@@ -3015,10 +3149,11 @@ function Mappy._OptionsPanel:Construct(pParent)
 
     -- Gather section header
     -- 12.0.7: Blizzard removed Minimap:SetBlipTexture() from API
+    -- TODO: Find a workaround. Custom blips overlapping these? Some addons seem to detect exact node names and coords just fine...
 
     self.GatherHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.GatherHeader:SetPoint("TOPRIGHT", self.SettingsLine, "TOPRIGHT", -5, 13)
-    self.GatherHeader:SetText("Addons cannot modify gathering nodes since 12.0.7. Thanks Blizz!")
+    self.GatherHeader:SetText("Blizz broke it in 12.0.7. Working on a workaround!")
 
 	-- Flash gathering nodes
 
@@ -3315,6 +3450,15 @@ function Mappy._AppearancePanel:Construct(pParent)
 	self.AutoHideButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoHideButtons(self:GetChecked()) end)
 	MappyAutoHideButtonsCheckbuttonText:SetText("Show buttons ONLY on mouseover")
 
+	-- Group Finder eye always visible (Forever client)
+
+	if Mappy.IsForeverClient then
+		self.AlwaysShowGroupFinderCheckbutton = CreateFrame("CheckButton", "MappyAlwaysShowGroupFinderCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.AlwaysShowGroupFinderCheckbutton:SetPoint("TOPLEFT", self.AutoHideButtonsCheckbutton, "TOPLEFT", 30, -25)
+		self.AlwaysShowGroupFinderCheckbutton:SetScript("OnClick", function (self) Mappy:SetAlwaysShowGroupFinder(self:GetChecked()) end)
+		MappyAlwaysShowGroupFinderCheckbuttonText:SetText("Except the Group Finder eye")
+	end
+
 	-- Quest ring toggle
 
 	self.HideQuestRingCheckbutton = CreateFrame("CheckButton", "MappyHideQuestRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
@@ -3355,6 +3499,9 @@ function Mappy._AppearancePanel:OnShow()
 	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
 	self.AutoHideButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.AutoHideButtons)
+	if self.AlwaysShowGroupFinderCheckbutton then
+		self.AlwaysShowGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowGroupFinder)
+	end
 	self.HideQuestRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideQuestRing)
 	if self.HideTaskRingCheckbutton then
 		self.HideTaskRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTaskRing)
@@ -3524,6 +3671,15 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.StackToScreenCheckbutton:SetScript("OnClick", function (self) Mappy:SetStackToScreen(self:GetChecked()) end)
 	MappyStackToScreenCheckbuttonText:SetText("Stack around screen")
 
+	-- Group Finder eye stacking (Forever client)
+
+	if Mappy.IsForeverClient then
+		self.StackGroupFinderCheckbutton = CreateFrame("CheckButton", "MappyStackGroupFinderCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.StackGroupFinderCheckbutton:SetPoint("TOPLEFT", self.AutoStackCheckbutton, "TOPLEFT", 340, 0)
+		self.StackGroupFinderCheckbutton:SetScript("OnClick", function (self) Mappy:SetStackGroupFinder(self:GetChecked()) end)
+		MappyStackGroupFinderCheckbuttonText:SetText("Include the Group Finder eye")
+	end
+
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -3546,6 +3702,9 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	self.BottomRightCheckbutton:SetChecked(Mappy.CurrentProfile.StartingCorner == "BOTTOMRIGHT")
 	self.CCWCheckbutton:SetChecked(Mappy.CurrentProfile.CCW)
 	self.StackToScreenCheckbutton:SetChecked(Mappy.CurrentProfile.StackToScreen)
+	if self.StackGroupFinderCheckbutton then
+		self.StackGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.StackGroupFinder)
+	end
 
 	Mappy.DisableUpdates = false
 end
