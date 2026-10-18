@@ -72,11 +72,16 @@ Blizzard's `EditModeManagerFrame:UpdateLayoutInfo()` re-anchors every Edit Mode 
 - Edit Mode exit (through "revert all changes") and spectate mode.
 
 How Mappy reacts:
-- `EnterEditMode` hook: with addon positioning, switches to the Edit Mode position while editing.
+- `EnterEditMode` hook: with addon positioning, moves `MinimapCluster` to its saved Edit Mode position with `ApplyEditModeAnchor()`, a copy of Blizzard's `ApplySystemAnchor` math that doesn't call into Edit Mode. Never call `C_EditMode.SetActiveLayout()` while Edit Mode is open: from this hook it caused "attempt to call a nil value" errors on Edit Mode open and exit on Forever (`EditModeManager.lua:130` and `:1672`).
 - `ExitEditMode` hook and `ACTIVE_PLAYER_SPECIALIZATION_CHANGED`: a full refresh in both positioning modes, which also reapplies the size override (`OverrideEditModeSize()`).
 - `UpdateLayoutInfo` post-hook (`EditModeLayoutUpdated()`), addon positioning only: restores the position and size override in the same call, so the Edit Mode position is never drawn, then schedules a full refresh. While Edit Mode is open it skips the instant restore, which would otherwise undo the position being edited. It ignores Edit Mode positioning entirely: in that mode `ConfigureMinimap()` calls `C_EditMode.SetActiveLayout()`, which would re-enter the hook every frame.
+- Group Finder eye (`QueueStatusButton`, Forever only; on retail it belongs to the micro menu and doesn't touch the minimap):
+  - Its default Edit Mode spot is an offset from the minimap, so the addon-button scan would take it over. It's in `IgnoreFrames`, and Mappy leaves it to Edit Mode unless the profile's `StackGroupFinder` is on.
+  - With it on, `StackGroupFinder()` stacks it as a Blizzard button after the other Blizzard buttons, at 100% size (also in `OverrideEditModeSize()`). The `EnterEditMode` hook releases it to Edit Mode (`ReleaseGroupFinder()`) and restacks the ring without it; exit restacks it.
+  - Releasing sets the replaced `SetPoint`/`ClearAllPoints` to `nil` instead of assigning the originals back, so Blizzard's methods are used without Mappy-written fields. It then applies the eye's Edit Mode size and saved anchor.
+  - Its default spot is scaled by `MinimapCluster:GetEditModeScale()` and only recalculated on `Minimap.OnScaleUpdated`. `OverrideEditModeSize()` doesn't fire that, so `ConfigureMinimap()` fires it after the override. `SetEditModeScale(1)` isn't used because Forever's `Diel.lua` wraps it to re-anchor the day/night button.
 
-Known gap: with Edit Mode positioning, a layout switch from anything other than Edit Mode exit or a spec swap (gamepad mode, layout-switcher addons, spectate) leaves Edit Mode's minimap size in place until the next refresh.
+Known gap: with Edit Mode positioning, a layout switch from anything other than Edit Mode exit or a spec swap (gamepad mode, layout-switcher addons, spectate) leaves Edit Mode's minimap size, and a stacked Group Finder eye's size, in place until the next refresh.
 
 ### Combat Handling
 
