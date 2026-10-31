@@ -244,9 +244,6 @@ Mappy.SquareArchRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareArchRing"
 Mappy.BlobRingAlpha = 128
 
 
-Mappy.LandmarkArrows = {}
-
-
 -- local functions
 
 local function tableContains(table, key)
@@ -523,16 +520,6 @@ function Mappy:ApplyProtectedInitState()
 	Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
 	Minimap.ZoomIn:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
 	Minimap.ZoomOut:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
-end
-
-function Mappy:ReparentLandmarks()
-	for vFrameIndex, vFrame in ipairs({Minimap:GetChildren()}) do
-		-- self:DebugMessage("Frame %s: Width: %s Height: %s Type: %s", vFrame:GetName() or "anonymous", vFrame:GetWidth() or "nil", vFrame:GetHeight() or "nil", vFrame:GetObjectType() or "nil")
-
-		if vFrame:GetName() ~= "MinimapBackdrop" then -- Don't reparent the backdrop since we want it to fade with the map
-			vFrame:SetParent(MinimapCluster)
-		end
-	end
 end
 
 function Mappy:FindMinimapButtons()
@@ -1210,10 +1197,6 @@ function Mappy:reset(pParameter)
 	self:LoadProfile(gMappy_Settings.Profiles.DEFAULT)
 end
 
-function Mappy:gcompact()
-	self:CompactGatherer()
-end
-
 function Mappy:BeginStackingButtons()
 	if self.CurrentProfile.StackToScreen then
 		self.StackingInfo.StackingParent = UIParent
@@ -1487,11 +1470,6 @@ function Mappy:ConfigureMinimap()
 
 	MinimapCluster:SetWidth(self.CurrentProfile.MinimapSize)
 	MinimapCluster:SetHeight(self.CurrentProfile.MinimapSize)
-
-	for vMapArrow, _ in pairs(self.LandmarkArrows) do
-		vMapArrow.Mappy.SetWidth(vMapArrow, self.CurrentProfile.MinimapSize * 1.1)
-		vMapArrow.Mappy.SetHeight(vMapArrow, self.CurrentProfile.MinimapSize * 1.1)
-	end
 
     if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
 	    Minimap:SetScale(1.001) -- Poke the scaling to force a refresh of the minimap size
@@ -1881,10 +1859,6 @@ end
 function Mappy:OnFadeFinished()
 	self.FadeTarget = nil
 
-	if self.MappyPlayerArrow then
-		self.MappyPlayerArrow:SetAlpha(1 - MinimapCluster:GetAlpha())
-	end
-
 	-- Fudge the zoom to force the minimap to re-paint
 	local vMinimapZoom = Minimap:GetZoom()
 	if vMinimapZoom > 0 then
@@ -1902,9 +1876,6 @@ function Mappy:AdjustAlpha(pForceAlpha)
 		self.FadeTarget = nil
 		MinimapCluster:SetAlpha(pForceAlpha)
 		Minimap:SetAlpha(pForceAlpha)
-		if self.MappyPlayerArrow then
-			self.MappyPlayerArrow:SetAlpha(1 - pForceAlpha)
-		end
 	else
 		local vAlpha
 
@@ -2777,132 +2748,6 @@ function Mappy.SetFrameLevel(pFrame, pLevel)
 end
 
 ----------------------------------------
-Mappy.RotatingMinimapArrow = {}
-----------------------------------------
-
-function Mappy.RotatingMinimapArrow:Construct(pArrow)
-	-- Do nothing if we've already hooked this one
-	
-	if Mappy.LandmarkArrows[pArrow] then
-		return
-	end
-	
-	-- Save the current values
-	
-	pArrow.Mappy =
-	{
-		SetPosition = pArrow.SetPosition,
-		GetPosition = pArrow.GetPosition,
-		SetWidth = pArrow.SetWidth,
-		GetWidth = pArrow.GetWidth,
-		SetHeight = pArrow.SetHeight,
-		GetHeight = pArrow.GetHeight,
-		
-		Width = pArrow:GetWidth(),
-		Height = pArrow:GetHeight(),
-	}
-	
-	pArrow.Mappy.x, pArrow.Mappy.y, pArrow.Mappy.z = pArrow:GetPosition()
-	
-	-- Hook the model
-	
-	for vName, vFunction in pairs(self) do
-		pArrow[vName] = vFunction
-	end
-	
-	-- Recalculate the current position
-	
-	pArrow.Mappy.SetWidth(pArrow, Mappy.CurrentProfile.MinimapSize)
-	pArrow.Mappy.SetHeight(pArrow, Mappy.CurrentProfile.MinimapSize)
-	
-	pArrow:SetPosition(pArrow.Mappy.x, pArrow.Mappy.y, pArrow.Mappy.z)
-	
-	--
-	
-	Mappy.LandmarkArrows[pArrow] = true
-end
-
-function Mappy.RotatingMinimapArrow:SetPosition(pX, pY, pZ)
-	self.Mappy.x, self.Mappy.y, self.Mappy.z = pX, pY, pZ
-	
-	-- Remap the position
-	
-	local vOrigRight, vOrigTop = self:GetOrigTopRightCoord()
-	local vNewRight, vNewTop = self:GetTopRightCoord()
-	
-	local vX = pX * vNewRight / vOrigRight
-	local vY = pY * vNewTop / vOrigTop
-	
-	-- Mappy:TestMessage("SetPosition: %s, %s, %s from %s, %s to %s, %s resulting in %s, %s, %s", pX, pY, pZ, vOrigRight, vOrigTop, vNewRight, vNewTop, vX, vY, pZ)
-	
-	self.Mappy.SetPosition(self, vX, vY, pZ)
-end
-
-function Mappy.RotatingMinimapArrow:GetPosition()
-	return self.Mappy.x, self.Mappy.y, self.Mappy.z
-end
-
-function Mappy.RotatingMinimapArrow:SetWidth(pWidth)
-	self.Mappy.Width = pWidth
-end
-
-function Mappy.RotatingMinimapArrow:GetWidth()
-	return self.Mappy.Width
-end
-
-function Mappy.RotatingMinimapArrow:SetHeight(pHeight)
-	self.Mappy.Height = pHeight
-end
-
-function Mappy.RotatingMinimapArrow:GetHeight()
-	return self.Mappy.Height
-end
-
-function Mappy.RotatingMinimapArrow:GetTopRightCoord()
-	local vScale = self:GetEffectiveScale()
-	local vHyp = ((GetScreenWidth() * vScale) ^ 2 + (GetScreenHeight() * vScale) ^ 2) ^ 0.5
-	
-	return (self.Mappy.GetWidth(self)) / vHyp, (self.Mappy.GetHeight(self)) / vHyp
-end
-
-function Mappy.RotatingMinimapArrow:GetOrigTopRightCoord()
-	local vScale = self:GetEffectiveScale()
-	local vHyp = ((GetScreenWidth() * vScale) ^ 2 + (GetScreenHeight() * vScale) ^ 2) ^ 0.5
-	
-	return (self.Mappy.Width or 140.8) / vHyp, (self.Mappy.Height or 140.8) / vHyp
-end
-
-function Mappy:GetModelTopRight(pModel)
-	local vScale = pModel:GetEffectiveScale()
-	local vHyp = ((GetScreenWidth() * vScale) ^ 2 + (GetScreenHeight() * vScale) ^ 2) ^ 0.5
-	
-	return (pModel:GetWidth()) / vHyp, (pModel:GetHeight()) / vHyp
-end
-
-----------------------------------------
--- Gatherer support
-----------------------------------------
-
-if Gatherer
-and Gatherer.MiniNotes
-and Gatherer.MiniNotes.UpdateMinimapNotes then
-	Gatherer.MiniNotes.Mappy_UpdateMinimapNotes = Gatherer.MiniNotes.UpdateMinimapNotes
-	
-	function Gatherer.MiniNotes.UpdateMinimapNotes(...)
-		local vResult = {Gatherer.MiniNotes.Mappy_UpdateMinimapNotes(...)}
-		
-		if not InCombatLockdown() then
-			for _, vGatherNote in ipairs(Gatherer.MiniNotes.Notes) do
-				vGatherNote:SetParent(MinimapCluster)
-				vGatherNote:SetFrameLevel(MinimapCluster:GetFrameLevel() + 5)
-			end
-		end
-		
-		return unpack(vResult)
-	end
-end
-
-----------------------------------------
 -- GatherMate support
 ----------------------------------------
 
@@ -2934,150 +2779,6 @@ end
 
 function GetMinimapShape()
 	return "SQUARE"
-end
-
-----------------------------------------
--- Compact the gatherer database (collapses nodes)
-----------------------------------------
-
-local POS_X = 1
-local POS_Y = 2
-local COUNT = 3
-local HARVESTED = 4
-local INSPECTED = 5
-local SOURCE = 6
-
-function Mappy:CompactGatherer()
-	-- Gatherer node data indices
-	
-	local vGatherData = Gatherer.Storage.GetRawDataTable()
-	
-	for vContinentIndex, vContinentData in ipairs(vGatherData) do
-		for vZoneID, vZoneData in pairs(vContinentData) do
-			local vNodeBin = self:BuildGathererNodeBin(vZoneData)
-			
-			self:CollapseNearbyGathererNodes(vNodeBin)
-			self:AdjustCollapsedNodePositions(vNodeBin)
-			self:SaveGathererData(vNodeBin, vZoneData)
-		end -- for vZoneID
-	end -- for vContinentIndex
-end
-
-function Mappy:BuildGathererNodeBin(pZoneData)
-	local vNodeBin = {}
-	
-	for vNodeID, vNodeList in pairs(pZoneData) do
-		local vNodeTypeBin = vNodeBin[vNodeList.gtype]
-		
-		if not vNodeTypeBin then
-			vNodeTypeBin = {}
-			vNodeBin[vNodeList.gtype]= vNodeTypeBin
-		end
-		
-		for vNodeIndex, vNodeData in ipairs(vNodeList) do
-			local vColumn2 = math.floor(vNodeData[POS_X] * 1000 + 0.5)
-			local vRow2 = math.floor(vNodeData[POS_Y] * 1000 + 0.5)
-			
-			local vNodeTypeRow = vNodeTypeBin[vRow2]
-			
-			if not vNodeTypeRow then
-				vNodeTypeRow = {}
-				vNodeTypeBin[vRow2] = vNodeTypeRow
-			end
-			
-			local vExistingNode = vNodeTypeRow[vColumn2]
-			
-			if vExistingNode then
-				vExistingNode[POS_X] = vExistingNode[POS_X] + vNodeData[POS_X]
-				vExistingNode[POS_Y] = vExistingNode[POS_Y] + vNodeData[POS_Y]
-				vExistingNode[COUNT] = vExistingNode[COUNT] + vNodeData[COUNT]
-				vExistingNode.CollapseCount = vExistingNode.CollapseCount + 1
-			else
-				local vNewNodeData = {}
-				
-				for vKey, vValue in pairs(vNodeData) do
-					vNewNodeData[vKey] = vValue
-				end
-				
-				vNewNodeData.CollapseCount = 1
-				vNewNodeData.NodeID = vNodeID
-				vNodeTypeRow[vColumn2] = vNewNodeData
-			end -- if vExistingNode
-		end -- while vNodeIndex
-	end -- for vNodeType
-	
-	return vNodeBin
-end
-
-function Mappy:CollapseNearbyGathererNodes(pNodeBin)
-	for vNodeType, vNodeTypeBin in pairs(pNodeBin) do
-		for vRow, vRowData in pairs(vNodeTypeBin) do
-			for vColumn, vNodeData in pairs(vRowData) do
-				for vRowOffset = -4, 4 do
-					for vColOffset = -4, 4 do
-						if vRowOffset ~= 0 or vColOffset ~= 0 then
-							local vRow2 = vRow + vRowOffset
-							local vColumn2 = vColumn + vColOffset
-							
-							local vRowData2 = vNodeTypeBin[vRow2]
-							local vNodeData2 = vRowData2 and vRowData2[vColumn2]
-							
-							if vNodeData2 then
-								vNodeData2[POS_X] = vNodeData[POS_X] + vNodeData2[POS_X]
-								vNodeData2[POS_Y] = vNodeData[POS_Y] + vNodeData2[POS_Y]
-								vNodeData2[COUNT] = vNodeData[COUNT] + vNodeData2[COUNT]
-								
-								vNodeData2.CollapseCount = vNodeData.CollapseCount + vNodeData2.CollapseCount
-								
-								vRowData[vColumn] = nil
-								
-								Mappy:NoteMessage("Collapsing nearby %s node", vNodeType)
-							end
-						end -- if vRowOffset
-					end -- for vColOffset
-				end -- for vRowOffset
-			end -- for vColumn
-		end -- for vRow
-	end -- for vNodeType
-end
-
-function Mappy:AdjustCollapsedNodePositions(pNodeBin)				
-	for vNodeType, vNodeTypeBin in pairs(pNodeBin) do
-		for vRow, vRowData in pairs(vNodeTypeBin) do
-			for vColumn, vNodeData in pairs(vRowData) do
-				if vNodeData.CollapseCount > 1 then
-					vNodeData[POS_X] = vNodeData[POS_X] / vNodeData.CollapseCount
-					vNodeData[POS_Y] = vNodeData[POS_Y] / vNodeData.CollapseCount
-				end
-			end -- for vColumn
-		end -- for vRow
-	end -- for vNodeType
-end
-
-function Mappy:SaveGathererData(pNodeBin, pZoneData)
-	for vKey, _ in pairs(pZoneData) do
-		pZoneData[vKey] = nil
-	end
-	
-	for vNodeType, vNodeTypeBin in pairs(pNodeBin) do
-		for vRow, vRowBin in pairs(vNodeTypeBin) do
-			for vColumn, vNodeData in pairs(vRowBin) do
-				local vNodeList = pZoneData[vNodeData.NodeID]
-				
-				if not vNodeList then
-					vNodeList =
-					{
-						gtype = vNodeType
-					}
-					pZoneData[vNodeData.NodeID] = vNodeList
-				end
-				
-				table.insert(vNodeList, vNodeData)
-			end
-		end
-	end
-	
-	Gatherer.Report.NeedsUpdate()
 end
 
 ----------------------------------------

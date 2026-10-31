@@ -26,7 +26,7 @@ Other features include:
 * Alpha settings, separate for combat, movement and default state
 * Option to hide the quest/WQ/archaeology border ring
 * Profiles (including being able to set a profile for mounting, dungeon etc)
-* Gathering overlay support for Gatherer and GatherMate
+* Gathering overlay support for GatherMate
 * Compatibility with MinimapButtonBag Reborn
 * Compatibility with FarmHud
 * ~~Bigger and/or blinking gathering nodes~~ - **No longer possible since 12.0.7**
