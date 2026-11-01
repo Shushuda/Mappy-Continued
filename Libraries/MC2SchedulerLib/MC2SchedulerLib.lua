@@ -114,7 +114,12 @@ function Addon.SchedulerLib:InsertTask(pTask)
 	if not pTask then
 		error("Inserting a nil task")
 	end
-	
+
+	-- Tasks added while tasks are running wait for the next frame
+	if self.OnUpdateRunning then
+		pTask.DidRun = true
+	end
+
 	table.insert(self.Tasks, pTask)
 	
 	self.NeedSorted = true
