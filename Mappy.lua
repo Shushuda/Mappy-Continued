@@ -459,9 +459,12 @@ function Mappy:InitializeMinimap()
     -- Also when settings change
     self.EventLib:RegisterEvent("CVAR_UPDATE", self.CVarUpdated, self)
 
-    -- Stop rotation when FarmHud's HUD hides
     if Mappy.FarmHudEnabled then
+        -- Stop rotation when FarmHud's HUD hides
         FarmHud:HookScript("OnHide", function() Mappy:StopMinimapRotation() end)
+
+        -- Let FarmHud keep frames anchored to the minimap in place while the HUD is shown
+        FarmHud:RegisterForeignAddOnObject(MinimapCluster, gAddonName)
     end
 
     -- TODO: Remove guard once 12.1.7 is live
@@ -1464,6 +1467,12 @@ function Mappy:ConfigureMinimap()
     if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
 	    Minimap:SetWidth(self.CurrentProfile.MinimapSize)
 	    Minimap:SetHeight(self.CurrentProfile.MinimapSize)
+
+        -- Move LibDBIcon buttons to the new border
+        local vDBIcon = LibStub("LibDBIcon-1.0", true)
+        if vDBIcon then
+            vDBIcon:SetButtonRadius(vDBIcon.radius)
+        end
     end
 
 	MinimapCluster:SetWidth(self.CurrentProfile.MinimapSize)
@@ -1564,6 +1573,10 @@ function Mappy:StackMinimapButtons()
 			end
 
 			vButton = vNextButton
+        else
+            -- Unarranged buttons get the same parent and level as stacked ones
+            vNextButton:SetParent(MinimapCluster)
+            Mappy.SetFrameLevel(vNextButton, self.StackingInfo.ButtonFrameLevel)
 		end
 	end
 
