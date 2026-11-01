@@ -914,6 +914,9 @@ function Mappy:InitializeSquareShape()
 		MinimapBackdrop.StaticOverlayTexture = vStaticOverlay
 	end
 
+    -- Blizzard re-anchors this button through MinimapBackdrop
+    MinimapBackdrop.ExternalEventURLButton = MinimapBackdrop:GetParent().ExternalEventURLButton
+
 	MinimapBackdrop.backdropInfo = {
 		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
 		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
