@@ -1245,8 +1245,14 @@ function Mappy:StackButton(pButton, pNextButton)
     -- Check if mini button and add more space for border if yes
     if tableContains(self.BlizzardMinimalistButtons, pButton) then
         vButtonSize = vButtonSize + 16
-        MiniOffsetH = -16
-        MiniOffsetV = -16
+        -- Room for both borders after another mini button, otherwise only for this one
+        if tableContains(self.BlizzardMinimalistButtons, self.StackingInfo.PreviousButton) then
+            MiniOffsetH = -16
+            MiniOffsetV = -16
+        else
+            MiniOffsetH = -7
+            MiniOffsetV = -7
+        end
     elseif tableContains(self.BlizzardMinimalistButtons, self.StackingInfo.PreviousButton) then
         -- Correct offset if previous button was mini, but current button is not
         if self.StackingInfo.PreviousButton == MinimapCluster.InstanceDifficulty then
