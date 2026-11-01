@@ -62,6 +62,14 @@ if MinimapCluster.InstanceDifficulty then
     Mappy.BlizzardMinimalistButtons[MinimapCluster.InstanceDifficulty] = true
 end
 
+-- Blizzard's minimap insets for buttons Mappy moves
+-- IDs are Blizz's local constants
+Mappy.BlizzardInsetIDs = {
+    ExpansionLandingPageOverlay = true,
+    CamelotDielFrame = true, -- Forever client
+    CamelotQueueStatusButton = true, -- Forever client
+}
+
 Mappy.OtherAddonButtonNames = {
 	"CT_RASets_Button",
     "MBB_MinimapButtonFrame",
@@ -474,6 +482,11 @@ function Mappy:InitializeMinimap()
         -- Also once now
         self:RestoreSquareSkin()
     end
+
+    -- Clear Blizzard's minimap insets whenever they're set
+    hooksecurefunc(C_Minimap, "SetMinimapInsetInfo", function(pID) Mappy:ClearBlizzardInsets(pID) end)
+    -- Also once now, for insets set before Mappy loaded
+    self:ClearBlizzardInsets()
 
 	self:RegenEnabled()
 
@@ -957,6 +970,26 @@ function Mappy:RestoreSquareSkin()
 	Minimap:SetMaskTexture(self.MinimapMaskPath)
 	MinimapCompassTexture:SetTexture(nil)
 	MinimapCompassTextureUnderlay:Hide()
+end
+
+-- Clear Blizzard's minimap insets for buttons Mappy moves
+function Mappy:ClearBlizzardInsets(pID)
+    -- TODO: Remove once 12.1.7 is live and Forever has named insets
+    -- Before 12.1.7 there's one unnamed inset, only set for the expansion button
+    if not (MinimapUtil and MinimapUtil.UpdateInsetForFrame) then
+        C_Minimap.ClearMinimapInsetInfo()
+        return
+    end
+
+    if pID then
+        if self.BlizzardInsetIDs[pID] then
+            C_Minimap.ClearMinimapInsetInfo(pID)
+        end
+    else
+        for vID in pairs(self.BlizzardInsetIDs) do
+            C_Minimap.ClearMinimapInsetInfo(vID)
+        end
+    end
 end
 
 function Mappy:SetCounterClockwise(pCCW)
