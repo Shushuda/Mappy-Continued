@@ -2072,6 +2072,9 @@ function Mappy:SetHideTimeManagerClock(pHide)
 		self.CurrentProfile.HideTimeManagerClock = nil
         TimeManagerClockButton:Show()
 	end
+
+    -- Restack so the buttons stop or start skipping the clock
+    self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 end
 
 function Mappy:SetHideDiel(pHide)
