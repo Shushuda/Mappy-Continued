@@ -1265,6 +1265,34 @@ function Mappy:StackButton(pButton, pNextButton)
 		vSpaceUsed = vButtonSize + self.StackingInfo.CornerInfo.ButtonGap
 	end
 
+    -- Jump past the clock if this button would cover it
+    if self.StackingInfo.Corner:sub(1, 6) == "BOTTOM"
+    and not self.StackingInfo.CornerInfo.IsVert
+    and self.StackingInfo.StackingParent == Minimap
+    and self.StackingInfo.PreviousButton
+    and TimeManagerClockButton
+    and TimeManagerClockButton:IsVisible() then
+        if self.CurrentProfile.CCW then
+            if self.StackingInfo.PreviousButton:GetRight() < TimeManagerClockButton:GetRight()
+            and self.StackingInfo.PreviousButton:GetRight() + vSpaceUsed > TimeManagerClockButton:GetLeft() then
+                local vGapWidth = TimeManagerClockButton:GetLeft() - self.StackingInfo.PreviousButton:GetRight()
+                local vClockButtonWidth = TimeManagerClockButton:GetWidth()
+
+                self.StackingInfo.PreviousButton = TimeManagerClockButton
+                self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vClockButtonWidth - vGapWidth
+            end
+        else
+            if self.StackingInfo.PreviousButton:GetLeft() > TimeManagerClockButton:GetLeft()
+            and self.StackingInfo.PreviousButton:GetLeft() - vSpaceUsed < TimeManagerClockButton:GetRight() then
+                local vGapWidth = self.StackingInfo.PreviousButton:GetLeft() - TimeManagerClockButton:GetRight()
+                local vClockButtonWidth = TimeManagerClockButton:GetWidth()
+
+                self.StackingInfo.PreviousButton = TimeManagerClockButton
+                self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vClockButtonWidth - vGapWidth
+            end
+        end
+    end
+
 	-- See if there's going to be room for the next button
 
 	if pNextButton then
@@ -1275,34 +1303,7 @@ function Mappy:StackButton(pButton, pNextButton)
         end
 
 		local	vSpaceNeeded = vSpaceUsed + vNextButtonSize / 2
-		
-		if self.StackingInfo.Corner:sub(1, 6) == "BOTTOM"
-		and not self.StackingInfo.CornerInfo.IsVert
-		and self.StackingInfo.StackingParent == Minimap
-		and self.StackingInfo.PreviousButton
-		and TimeManagerClockButton
-		and TimeManagerClockButton:IsVisible() then
-			if self.CurrentProfile.CCW then
-				if self.StackingInfo.PreviousButton:GetRight() < TimeManagerClockButton:GetRight()
-				and self.StackingInfo.PreviousButton:GetRight() + vSpaceUsed > TimeManagerClockButton:GetLeft() then
-					local vGapWidth = TimeManagerClockButton:GetLeft() - self.StackingInfo.PreviousButton:GetRight()
-					local vClockButtonWidth = TimeManagerClockButton:GetWidth()
-					
-					self.StackingInfo.PreviousButton = TimeManagerClockButton
-					self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vClockButtonWidth - vGapWidth
-				end
-			else
-				if self.StackingInfo.PreviousButton:GetLeft() > TimeManagerClockButton:GetLeft()
-				and self.StackingInfo.PreviousButton:GetLeft() - vSpaceUsed < TimeManagerClockButton:GetRight() then
-					local vGapWidth = self.StackingInfo.PreviousButton:GetLeft() - TimeManagerClockButton:GetRight()
-					local vClockButtonWidth = TimeManagerClockButton:GetWidth()
-					
-					self.StackingInfo.PreviousButton = TimeManagerClockButton
-					self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vClockButtonWidth - vGapWidth
-				end
-			end
-		end
-		
+
 		if self.StackingInfo.SpaceRemaining < vSpaceNeeded then
 			-- Change the stacking direction and corner
 			
