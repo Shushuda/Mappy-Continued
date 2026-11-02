@@ -487,7 +487,7 @@ function Mappy:InitializeMinimap()
         -- Stop rotation and restore Mappy's alpha when FarmHud's HUD hides
         FarmHud:HookScript("OnHide", function()
             -- It also hides with the UI, but keeps the minimap in the HUD then
-            if Minimap:GetParent() ~= FarmHud then
+            if not Mappy:IsMinimapInFarmHud() then
                 Mappy:StopMinimapRotation()
                 Mappy:ApplyMinimapAlpha(Mappy.MinimapFaderAlpha)
             end
@@ -951,7 +951,7 @@ end
 -- Stop minimap rotation
 -- But let FarmHud do whatever
 function Mappy:StopMinimapRotation()
-	if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) and GetCVarBool("rotateMinimap") then
+    if not self:IsMinimapInFarmHud() and GetCVarBool("rotateMinimap") then
 		SetCVar("rotateMinimap", false)
 	end
 end
@@ -1013,7 +1013,7 @@ end
 function Mappy:GhostMinimap()
 	self.CurrentProfile.GhostMinimap = true
 
-    if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
+    if not self:IsMinimapInFarmHud() then
 	    Minimap:RegisterForDrag()
 	    Minimap:EnableMouse(false)
 
@@ -1027,7 +1027,7 @@ end
 function Mappy:UnghostMinimap()
 	self.CurrentProfile.GhostMinimap = false
 
-    if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
+    if not self:IsMinimapInFarmHud() then
         Minimap:RegisterForDrag("LeftButton")
         Minimap:EnableMouse(true)
 
@@ -1238,7 +1238,7 @@ function Mappy:BeginStackingButtons()
 			self.StackingInfo.StackingInsetY = 24
 		end
 	else
-        if Mappy.FarmHudEnabled and FarmHud:IsVisible() then
+        if self:IsMinimapInFarmHud() then
             self.StackingInfo.StackingParent = FarmHudMinimapDummy
         else
 		    self.StackingInfo.StackingParent = Minimap
@@ -1491,7 +1491,7 @@ function Mappy:ConfigureMinimap()
     -- Recalculate the Group Finder's default position at Mappy's scale (Forever client)
     EventRegistry:TriggerEvent("Minimap.OnScaleUpdated", 1)
 
-    if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
+    if not self:IsMinimapInFarmHud() then
 	    Minimap:SetWidth(self.CurrentProfile.MinimapSize)
 	    Minimap:SetHeight(self.CurrentProfile.MinimapSize)
 
@@ -1505,7 +1505,7 @@ function Mappy:ConfigureMinimap()
 	MinimapCluster:SetWidth(self.CurrentProfile.MinimapSize)
 	MinimapCluster:SetHeight(self.CurrentProfile.MinimapSize)
 
-    if not (Mappy.FarmHudEnabled and FarmHud:IsVisible()) then
+    if not self:IsMinimapInFarmHud() then
 	    Minimap:SetScale(1.001) -- Poke the scaling to force a refresh of the minimap size
 	    Minimap:SetScale(1)
     end
@@ -2733,6 +2733,11 @@ end
 
 if FarmHud then
     Mappy.FarmHudEnabled = true
+end
+
+-- Check the parent, FarmHud also hides with the UI but keeps the minimap then
+function Mappy:IsMinimapInFarmHud()
+    return Mappy.FarmHudEnabled and Minimap:GetParent() == FarmHud
 end
 
 ----------------------------------------
