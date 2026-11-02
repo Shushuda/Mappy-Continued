@@ -24,6 +24,8 @@ Mappy.StackingInfo = {}
 Mappy.CoordAnchorInfo = {}
 
 Mappy.FadeTarget = nil
+Mappy.MinimapFaderAlpha = 1
+Mappy.ButtonFaderAlpha = 1
 Mappy.FadeDuration = 0.25
 Mappy.IsHovering = false
 Mappy.ButtonHideDelay = 3
@@ -440,10 +442,32 @@ function Mappy:InitializeMinimap()
 	Minimap:HookScript("OnEnter", function() Mappy:MinimapOnEnter() end)
 	Minimap:HookScript("OnLeave", function() Mappy:MinimapOnLeave() end)
 
+    -- Minimap fade workaround
+    self.MinimapFader = CreateFrame("Frame")
+    hooksecurefunc(self.MinimapFader, "SetAlpha", function(_, pAlpha) Mappy:ApplyMinimapAlpha(pAlpha) end)
+
 	-- Button mouseover fade workaround
 	self.ButtonFader = CreateFrame("Frame")
-	hooksecurefunc(self.ButtonFader, "SetAlpha", function(_, pAlpha) Mappy:SetButtonsAlpha(pAlpha) end)
+    hooksecurefunc(self.ButtonFader, "SetAlpha", function(_, pAlpha)
+        Mappy.ButtonFaderAlpha = pAlpha
+        Mappy:SetButtonsAlpha()
+    end)
 	self:UpdateButtonAutoHide()
+
+    local vDBIcon = LibStub("LibDBIcon-1.0", true)
+    if vDBIcon then
+        -- Mappy's button mouseover option replaces LibDBIcon's
+        for _, vName in ipairs(vDBIcon:GetButtonList()) do
+            self:DisableLibDBIconMouseover(vDBIcon, vName)
+        end
+        -- Also when an addon turns it on later
+        hooksecurefunc(vDBIcon, "ShowOnEnter", function(_, pName, pEnable)
+            if pEnable then
+                Mappy:DisableLibDBIconMouseover(vDBIcon, pName)
+                Mappy:SetButtonsAlpha()
+            end
+        end)
+    end
 
     -- Reapply addon positioning and minimap size after Edit Mode exit
     hooksecurefunc(EditModeManagerFrame, "ExitEditMode", self.EditModeExit)
@@ -460,8 +484,14 @@ function Mappy:InitializeMinimap()
     self.EventLib:RegisterEvent("CVAR_UPDATE", self.CVarUpdated, self)
 
     if Mappy.FarmHudEnabled then
-        -- Stop rotation when FarmHud's HUD hides
-        FarmHud:HookScript("OnHide", function() Mappy:StopMinimapRotation() end)
+        -- Stop rotation and restore Mappy's alpha when FarmHud's HUD hides
+        FarmHud:HookScript("OnHide", function()
+            -- It also hides with the UI, but keeps the minimap in the HUD then
+            if Minimap:GetParent() ~= FarmHud then
+                Mappy:StopMinimapRotation()
+                Mappy:ApplyMinimapAlpha(Mappy.MinimapFaderAlpha)
+            end
+        end)
 
         -- Let FarmHud keep frames anchored to the minimap in place while the HUD is shown
         FarmHud:RegisterForeignAddOnObject(MinimapCluster, gAddonName)
@@ -563,8 +593,6 @@ function Mappy:ConfigureMinimapOptions()
 	else
 		self:DisableButtonStacking()
 	end
-
-	self:ApplyButtonFadeSetting()
 
 	if self.CurrentProfile.HideTimeOfDay then
 		GameTimeFrame:Hide()
@@ -729,7 +757,6 @@ function Mappy:ReleaseGroupFinder()
     QueueStatusButton:SetParent(UIParent)
     -- Keep the eye art under the clicky button area
     QueueStatusButton.Eye:SetFrameLevel(QueueStatusButton:GetFrameLevel() - 1)
-    QueueStatusButton:SetIgnoreParentAlpha(false)
     QueueStatusButton:SetAlpha(1)
 
     -- Set Edit Mode size first, the position offsets depend on it
@@ -1590,7 +1617,7 @@ function Mappy:StackMinimapButtons()
 	end
 
 	-- Stacking sets buttons to full alpha, fade them back
-	self:ReapplyButtonsAlpha()
+    self:SetButtonsAlpha()
 end
 
 function Mappy:GetUIObjectDescription(pUIObject)
@@ -1834,42 +1861,38 @@ function Mappy:UpdateCoords()
     end
 end
 
+-- Set the map, zone name and clock alpha, and update the buttons
+function Mappy:ApplyMinimapAlpha(pAlpha)
+    self.MinimapFaderAlpha = pAlpha
+    Minimap:SetAlpha(pAlpha)
+    MinimapCluster.ZoneTextButton:SetAlpha(pAlpha)
+    if TimeManagerClockButton then
+        TimeManagerClockButton:SetAlpha(pAlpha)
+    end
+    self:SetButtonsAlpha()
+end
+
 function Mappy:FadeAlphaTo(pTargetAlpha)
-	if MinimapCluster:GetAlpha() == pTargetAlpha then
-		self.FadeTarget = nil
-		return
-	end
+    -- Already there or on the way
+    if self.FadeTarget == pTargetAlpha then
+        return
+    end
 
-	if self.FadeTarget == pTargetAlpha then
-		return
-	end
+    self.FadeTarget = pTargetAlpha
 
-	self.FadeTarget = pTargetAlpha
+    local vFadeInfo = {}
+    vFadeInfo.mode = "IN"
+    vFadeInfo.startAlpha = self.MinimapFaderAlpha
+    vFadeInfo.endAlpha = pTargetAlpha
+    vFadeInfo.timeToFade = self.FadeDuration
+    vFadeInfo.finishedFunc = self.OnFadeFinished
+    vFadeInfo.finishedArg1 = self
 
-	-- Fade buttons, clock, zone etc
-	local vFadeInfo = {}
-	vFadeInfo.mode = "IN"
-	vFadeInfo.startAlpha = MinimapCluster:GetAlpha()
-	vFadeInfo.endAlpha = pTargetAlpha
-	vFadeInfo.timeToFade = self.FadeDuration
-	vFadeInfo.finishedFunc = self.OnFadeFinished
-	vFadeInfo.finishedArg1 = self
-
-	UIFrameFade(MinimapCluster, vFadeInfo)
-
-	-- Fade the actual minimap
-	local vMinimapFadeInfo = {}
-	vMinimapFadeInfo.mode = "IN"
-	vMinimapFadeInfo.startAlpha = Minimap:GetAlpha()
-	vMinimapFadeInfo.endAlpha = pTargetAlpha
-	vMinimapFadeInfo.timeToFade = self.FadeDuration
-
-	UIFrameFade(Minimap, vMinimapFadeInfo)
+    -- UIFrameFade calls Show(), so fade a helper frame instead of the minimap
+    UIFrameFade(self.MinimapFader, vFadeInfo)
 end
 
 function Mappy:OnFadeFinished()
-	self.FadeTarget = nil
-
 	-- Fudge the zoom to force the minimap to re-paint
 	local vMinimapZoom = Minimap:GetZoom()
 	if vMinimapZoom > 0 then
@@ -1882,11 +1905,9 @@ end
 
 function Mappy:AdjustAlpha(pForceAlpha)
 	if pForceAlpha then
-		UIFrameFadeRemoveFrame(MinimapCluster)
-		UIFrameFadeRemoveFrame(Minimap)
-		self.FadeTarget = nil
-		MinimapCluster:SetAlpha(pForceAlpha)
-		Minimap:SetAlpha(pForceAlpha)
+        UIFrameFadeRemoveFrame(self.MinimapFader)
+        self.FadeTarget = pForceAlpha
+        self.MinimapFader:SetAlpha(pForceAlpha)
 	else
 		local vAlpha
 
@@ -2219,14 +2240,7 @@ function Mappy:SetFadeButtons(pValue)
 	if self.DisableUpdates then return end
 
 	self.CurrentProfile.FadeButtons = pValue
-	self:ApplyButtonFadeSetting()
-end
-
-function Mappy:ApplyButtonFadeSetting()
-	local vIgnore = not self.CurrentProfile.FadeButtons
-	for _, vButton in ipairs(self.MinimapButtons) do
-		vButton:SetIgnoreParentAlpha(vIgnore)
-	end
+    self:SetButtonsAlpha()
 end
 
 function Mappy:SetAutoHideButtons(pValue)
@@ -2250,9 +2264,7 @@ function Mappy:SetAlwaysShowGroupFinder(pValue)
 	if self.DisableUpdates then return end
 
 	self.CurrentProfile.AlwaysShowGroupFinder = pValue
-	if self.MinimapButtonsByFrame[QueueStatusButton] then
-		QueueStatusButton:SetAlpha(pValue and 1 or self.ButtonFader:GetAlpha())
-	end
+    self:SetButtonsAlpha()
 end
 
 -- Show buttons on mouseover, hide after a delay
@@ -2292,28 +2304,32 @@ end
 function Mappy:FadeButtonsTo(pTargetAlpha)
 	local vFadeInfo = {}
 	vFadeInfo.mode = "IN"
-	vFadeInfo.startAlpha = self.ButtonFader:GetAlpha()
+    vFadeInfo.startAlpha = self.ButtonFaderAlpha
 	vFadeInfo.endAlpha = pTargetAlpha
 	vFadeInfo.timeToFade = self.ButtonFadeDuration
 
 	UIFrameFade(self.ButtonFader, vFadeInfo)
 end
 
-function Mappy:SetButtonsAlpha(pAlpha)
-	for _, vButton in ipairs(self.MinimapButtons) do
-		-- Keep the Group Finder eye visible if enabled (Forever client)
-		if not (vButton == QueueStatusButton and self.CurrentProfile.AlwaysShowGroupFinder) then
-			vButton:SetAlpha(pAlpha)
-		end
-	end
+function Mappy:SetButtonsAlpha()
+    -- Buttons follow the minimap alpha unless they ignore the sliders
+    local vMinimapAlpha = self.CurrentProfile.FadeButtons and self.MinimapFaderAlpha or 1
+    for _, vButton in ipairs(self.MinimapButtons) do
+        -- Keep the Group Finder eye visible if enabled (Forever client)
+        if vButton == QueueStatusButton and self.CurrentProfile.AlwaysShowGroupFinder then
+            vButton:SetAlpha(vMinimapAlpha)
+        else
+            vButton:SetAlpha(self.ButtonFaderAlpha * vMinimapAlpha)
+        end
+    end
 end
 
--- Restore faded alpha after other code resets it
-function Mappy:ReapplyButtonsAlpha()
-	local vAlpha = self.ButtonFader:GetAlpha()
-	if vAlpha < 1 then
-		self:SetButtonsAlpha(vAlpha)
-	end
+-- Turn off LibDBIcon's mouseover hide on Mappy's buttons
+function Mappy:DisableLibDBIconMouseover(pDBIcon, pName)
+    local vButton = pDBIcon:GetMinimapButton(pName)
+    if vButton and self.MinimapButtonsByFrame[vButton] then
+        pDBIcon:ShowOnEnter(pName, false)
+    end
 end
 
 function Mappy.Button_OnHide(self, ...)
