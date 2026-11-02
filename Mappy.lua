@@ -13,6 +13,9 @@ Mappy.MBBenabled = nil
 -- FarmHud compatibility
 Mappy.FarmHudEnabled = nil
 
+-- Immersion compatibility
+Mappy.ImmersionEnabled = nil
+
 -- 12.0.7: Blizzard removed Minimap:SetBlipTexture() from API
 Mappy.enableBlips = false
 
@@ -497,6 +500,23 @@ function Mappy:InitializeMinimap()
         FarmHud:RegisterForeignAddOnObject(MinimapCluster, gAddonName)
     end
 
+    if Mappy.ImmersionEnabled then
+        -- Let the minimap follow UI fades
+        self:ClearIgnoreParentAlpha()
+
+        -- Clear it again when Immersion's "Hide minimap" is unticked
+        local vHideMinimapSetting = "IMMERSION_hideminimap"
+        if Settings.GetSetting(vHideMinimapSetting) then
+            Settings.SetOnValueChangedCallback(vHideMinimapSetting, function(_, _, pHide)
+                if not pHide then
+                    Mappy:ClearIgnoreParentAlpha()
+                end
+            end)
+        else
+            self:ErrorMessage("Please update Immersion, this version doesn't fully work with Mappy. If it's already up to date, please report this on Mappy Continued's GitHub page.")
+        end
+    end
+
     -- TODO: Remove guard once 12.1.7 is live
     if MinimapCluster.UpdateMinimapConfig then
         -- Undo the round minimap art whenever rotation changes (Forever client)
@@ -968,6 +988,12 @@ function Mappy:RestoreSquareSkin()
 	Minimap:SetMaskTexture(self.MinimapMaskPath)
 	MinimapCompassTexture:SetTexture(nil)
 	MinimapCompassTextureUnderlay:Hide()
+end
+
+-- Immersion makes the minimap ignore UI fades unless its "Hide minimap" is ticked
+function Mappy:ClearIgnoreParentAlpha()
+    Minimap:SetIgnoreParentAlpha(false)
+    MinimapCluster:SetIgnoreParentAlpha(false)
 end
 
 -- Move the zone text to the top and make it wider
@@ -2738,6 +2764,14 @@ end
 -- Check the parent, FarmHud also hides with the UI but keeps the minimap then
 function Mappy:IsMinimapInFarmHud()
     return Mappy.FarmHudEnabled and Minimap:GetParent() == FarmHud
+end
+
+----------------------------------------
+-- Immersion support
+----------------------------------------
+
+if ImmersionFrame then
+    Mappy.ImmersionEnabled = true
 end
 
 ----------------------------------------
