@@ -1259,181 +1259,150 @@ function Mappy:reset(pParameter)
 	self:LoadProfile(gMappy_Settings.Profiles.DEFAULT)
 end
 
-function Mappy:BeginStackingButtons()
-	if self.CurrentProfile.StackToScreen then
-		self.StackingInfo.StackingParent = UIParent
-		
-		if self.CurrentProfile.HideTimeOfDay then
-			self.StackingInfo.StackingInsetX = 18
-			self.StackingInfo.StackingInsetY = 18
-		else
-			self.StackingInfo.StackingInsetX = 24
-			self.StackingInfo.StackingInsetY = 24
-		end
-	else
-        if self:IsMinimapInFarmHud() then
-            self.StackingInfo.StackingParent = FarmHudMinimapDummy
-        else
-		    self.StackingInfo.StackingParent = Minimap
-        end
-		self.StackingInfo.StackingInsetX = 0
-		self.StackingInfo.StackingInsetY = 0
+-- Keep capacities, borders, clock bounds and corner carry in cluster coordinates.
+-- Minimap (or the FarmHud dummy) can have a different effective scale.
+local function GetStackingBounds(pFrame)
+	local vScale = pFrame:GetEffectiveScale() / MinimapCluster:GetEffectiveScale()
+	return pFrame:GetLeft() * vScale, pFrame:GetRight() * vScale,
+		pFrame:GetBottom() * vScale, pFrame:GetTop() * vScale
+end
+
+local function GetStackingButtonSize(pButton, pIsVert)
+	local vSize = pIsVert and pButton:GetHeight() or pButton:GetWidth()
+	if tableContains(Mappy.BlizzardMinimalistButtons, pButton) then
+		vSize = vSize + 16 -- Include the borders added by EnlargeMinimalistButtons.
 	end
-	
-	self.StackingInfo.Corner = self.StartingCorner
-	self.StackingInfo.CornerInfo = (self.CurrentProfile.CCW and self.CornerInfoCCW or self.CornerInfo)[self.StackingInfo.Corner]
-	self.StackingInfo.PreviousButton = nil
-	
-	if self.StackingInfo.CornerInfo.IsVert then
-		self.StackingInfo.SpaceRemaining = self.StackingInfo.StackingParent:GetHeight() - (2 * self.StackingInfo.StackingInsetY)
+	return vSize * pButton:GetScale()
+end
+
+function Mappy:BeginStackingButtons(pStackToScreen)
+	local vInfo = self.StackingInfo
+	if self.CurrentProfile.StackToScreen or pStackToScreen then
+		vInfo.StackingParent = UIParent
+		vInfo.StackingInsetX = self.CurrentProfile.HideTimeOfDay and 18 or 24
+		vInfo.StackingInsetY = vInfo.StackingInsetX
 	else
-		self.StackingInfo.SpaceRemaining = self.StackingInfo.StackingParent:GetWidth() - (2 * self.StackingInfo.StackingInsetX)
+		vInfo.StackingParent = self:IsMinimapInFarmHud() and FarmHudMinimapDummy or Minimap
+		vInfo.StackingInsetX = vInfo.StackingParent == Minimap and -5 or 0
+		vInfo.StackingInsetY = vInfo.StackingInsetX
 	end
-	
-	self.StackingInfo.ButtonFrameLevel = Minimap:GetFrameLevel() + 5
+
+	local vParentScale = vInfo.StackingParent:GetEffectiveScale() / MinimapCluster:GetEffectiveScale()
+	vInfo.StackingInsetX = vInfo.StackingInsetX * vParentScale
+	vInfo.StackingInsetY = vInfo.StackingInsetY * vParentScale
+	vInfo.Left, vInfo.Right, vInfo.Bottom, vInfo.Top = GetStackingBounds(vInfo.StackingParent)
+	vInfo.Left = vInfo.Left + vInfo.StackingInsetX
+	vInfo.Right = vInfo.Right - vInfo.StackingInsetX
+	vInfo.Bottom = vInfo.Bottom + vInfo.StackingInsetY
+	vInfo.Top = vInfo.Top - vInfo.StackingInsetY
+	vInfo.Corner = self.StartingCorner
+	vInfo.CornerInfo = (self.CurrentProfile.CCW and self.CornerInfoCCW or self.CornerInfo)[vInfo.Corner]
+	vInfo.PreviousButton = nil
+	vInfo.FirstButton = nil
+	vInfo.VisitedCorners = vInfo.StackingParent ~= UIParent and {[vInfo.Corner] = true} or nil
+	vInfo.SpaceRemaining = vInfo.CornerInfo.IsVert and (vInfo.Top - vInfo.Bottom) or (vInfo.Right - vInfo.Left)
+	vInfo.ButtonFrameLevel = Minimap:GetFrameLevel() + 5
 end
 
 function Mappy:StackButton(pButton, pNextButton)
-	-- Calculate the space used by the button
-
-	local vSpaceUsed
-	local vButtonSize = pButton:GetHeight()
-    local MiniOffsetH = 0
-    local MiniOffsetV = 0
-
-    -- Check if mini button and add more space for border if yes
-    if tableContains(self.BlizzardMinimalistButtons, pButton) then
-        vButtonSize = vButtonSize + 16
-        -- Room for both borders after another mini button, otherwise only for this one
-        if tableContains(self.BlizzardMinimalistButtons, self.StackingInfo.PreviousButton) then
-            MiniOffsetH = -16
-            MiniOffsetV = -16
-        else
-            MiniOffsetH = -7
-            MiniOffsetV = -7
-        end
-    elseif tableContains(self.BlizzardMinimalistButtons, self.StackingInfo.PreviousButton) then
-        -- Correct offset if previous button was mini, but current button is not
-        if self.StackingInfo.PreviousButton == MinimapCluster.InstanceDifficulty then
-            -- ...unless it's the dungeon difficulty icon, it's badly formatted
-            MiniOffsetH = MiniOffsetH - 2
-            MiniOffsetV = MiniOffsetV - 2
-        else
-            MiniOffsetH = MiniOffsetH - 7
-            MiniOffsetV = MiniOffsetV - 7
-        end
-    end
-
-	if not self.StackingInfo.PreviousButton then
-		vSpaceUsed = vButtonSize / 2 -- Corner, so use half the size
-	else
-		vSpaceUsed = vButtonSize + self.StackingInfo.CornerInfo.ButtonGap
+	if not pButton.Mappy_ClearAllPoints or not pButton.Mappy_SetPoint then
+		return
 	end
 
-    -- Jump past the clock if this button would cover it
-    if self.StackingInfo.Corner:sub(1, 6) == "BOTTOM"
-    and not self.StackingInfo.CornerInfo.IsVert
-    and self.StackingInfo.StackingParent == Minimap
-    and self.StackingInfo.PreviousButton
-    and TimeManagerClockButton
-    and TimeManagerClockButton:IsVisible() then
-        if self.CurrentProfile.CCW then
-            if self.StackingInfo.PreviousButton:GetRight() < TimeManagerClockButton:GetRight()
-            and self.StackingInfo.PreviousButton:GetRight() + vSpaceUsed > TimeManagerClockButton:GetLeft() then
-                local vGapWidth = TimeManagerClockButton:GetLeft() - self.StackingInfo.PreviousButton:GetRight()
-                local vClockButtonWidth = TimeManagerClockButton:GetWidth()
-
-                self.StackingInfo.PreviousButton = TimeManagerClockButton
-                self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vClockButtonWidth - vGapWidth
-            end
-        else
-            if self.StackingInfo.PreviousButton:GetLeft() > TimeManagerClockButton:GetLeft()
-            and self.StackingInfo.PreviousButton:GetLeft() - vSpaceUsed < TimeManagerClockButton:GetRight() then
-                local vGapWidth = self.StackingInfo.PreviousButton:GetLeft() - TimeManagerClockButton:GetRight()
-                local vClockButtonWidth = TimeManagerClockButton:GetWidth()
-
-                self.StackingInfo.PreviousButton = TimeManagerClockButton
-                self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vClockButtonWidth - vGapWidth
-            end
-        end
-    end
-
-	-- See if there's going to be room for the next button
-
-	if pNextButton then
-        local vNextButtonSize = pNextButton:GetHeight()
-
-        if tableContains(self.BlizzardMinimalistButtons, pNextButton) then
-            vNextButtonSize = vNextButtonSize + 16
-        end
-
-		local	vSpaceNeeded = vSpaceUsed + vNextButtonSize / 2
-
-		if self.StackingInfo.SpaceRemaining < vSpaceNeeded then
-			-- Change the stacking direction and corner
-			
-			self.StackingInfo.Corner = self.StackingInfo.CornerInfo.NextCorner
-			self.StackingInfo.CornerInfo = (self.CurrentProfile.CCW and self.CornerInfoCCW or self.CornerInfo)[self.StackingInfo.Corner]
-			self.StackingInfo.PreviousButton = nil
-			
-			if self.StackingInfo.CornerInfo.IsVert then
-				self.StackingInfo.SpaceRemaining = self.StackingInfo.StackingParent:GetHeight() - (2 * self.StackingInfo.StackingInsetY)
-                MiniOffsetH = 0
-			else
-				self.StackingInfo.SpaceRemaining = self.StackingInfo.StackingParent:GetWidth() - (2 * self.StackingInfo.StackingInsetX)
-                MiniOffsetV = 0
-			end
-			
-			vSpaceUsed = vButtonSize / 2
-		end
-	end
-
-    if self.StackingInfo.CornerInfo.OffsetPositive then
-        MiniOffsetH = -MiniOffsetH
-        MiniOffsetV = -MiniOffsetV
-    end
-
-    if self.StackingInfo.CornerInfo.IsVert then
-        MiniOffsetH = 0
-    else
-        MiniOffsetV = 0
-    end
-
-	-- Stack the button
-
+	local vInfo = self.StackingInfo
 	pButton:SetParent(MinimapCluster)
-	pButton:SetAlpha(1)
-	Mappy.SetFrameLevel(pButton, self.StackingInfo.ButtonFrameLevel)
+	local vHalfWidth = GetStackingButtonSize(pButton, false) / 2
+	local vHalfHeight = GetStackingButtonSize(pButton, true) / 2
+	local vNewSide = not vInfo.PreviousButton
 
-	if not pButton.Mappy_ClearAllPoints then
-		self:DebugMark()
-		self:DebugMessage("Mappy_ClearAllPoints is nil.  Name is %s", pButton:GetName() or "nil")
-		self:DebugTable("pButton", pButton)
-		self:DebugStack()
+	-- A turn carries the previous button's footprint onto the new side, rather
+	-- than resetting to the corner and overlapping its border.
+	for vAttempt = 1, 4 do
+		local vCorner = vInfo.CornerInfo
+		local vLength = vCorner.IsVert and (vInfo.Top - vInfo.Bottom) or (vInfo.Right - vInfo.Left)
+		local vHalfSize = vCorner.IsVert and vHalfHeight or vHalfWidth
+		local vX = vCorner.HorizInsetDir == 1 and vInfo.Left or vInfo.Right
+		local vY = vCorner.VertInsetDir == 1 and vInfo.Bottom or vInfo.Top
+		local vCenter = 0
+		if vInfo.PreviousButton then
+			if not vNewSide then
+				vCenter = vLength - vInfo.SpaceRemaining + vCorner.ButtonGap + vHalfSize
+			elseif vCorner.IsVert then
+				if vX + vHalfWidth > vInfo.PreviousLeft and vX - vHalfWidth < vInfo.PreviousRight then
+					vCenter = vCorner.VertGap < 0 and (vY - vInfo.PreviousBottom + vHalfSize + vCorner.ButtonGap)
+						or (vInfo.PreviousTop - vY + vHalfSize + vCorner.ButtonGap)
+				end
+			elseif vY + vHalfHeight > vInfo.PreviousBottom and vY - vHalfHeight < vInfo.PreviousTop then
+				vCenter = vCorner.HorizGap < 0 and (vX - vInfo.PreviousLeft + vHalfSize + vCorner.ButtonGap)
+					or (vInfo.PreviousRight - vX + vHalfSize + vCorner.ButtonGap)
+			end
+		end
+		vCenter = math.max(0, vCenter)
+
+		-- The bottom clock is a fixed blocker, including for the first button on
+		-- that side. Do not anchor to the clock: its Y offset is not our baseline.
+		if not vCorner.IsVert and vInfo.Corner:sub(1, 6) == "BOTTOM"
+		and vInfo.StackingParent == Minimap
+		and TimeManagerClockButton and TimeManagerClockButton:IsVisible() then
+			local vClockLeft, vClockRight = GetStackingBounds(TimeManagerClockButton)
+			local vCenterX = vX + vCorner.HorizGap * vCenter
+			if vCenterX + vHalfWidth > vClockLeft and vCenterX - vHalfWidth < vClockRight then
+				vCenter = vCorner.HorizGap < 0 and (vX - vClockLeft + vHalfWidth + vCorner.ButtonGap)
+					or (vClockRight - vX + vHalfWidth + vCorner.ButtonGap)
+			end
+		end
+
+		local vCenterX = vX + vCorner.HorizGap * vCenter
+		local vCenterY = vY + vCorner.VertGap * vCenter
+		local vLeft, vRight = vCenterX - vHalfWidth, vCenterX + vHalfWidth
+		local vBottom, vTop = vCenterY - vHalfHeight, vCenterY + vHalfHeight
+		local vClosingCorner = vInfo.VisitedCorners and vInfo.VisitedCorners[vCorner.NextCorner]
+		if vClosingCorner and vInfo.FirstButton
+		and vRight + vCorner.ButtonGap > vInfo.FirstLeft and vLeft - vCorner.ButtonGap < vInfo.FirstRight
+		and vTop + vCorner.ButtonGap > vInfo.FirstBottom and vBottom - vCorner.ButtonGap < vInfo.FirstTop then
+			return true -- Resume this same button on the screen, not the next one.
+		end
+
+		local vSpaceNeeded = vCenter + vHalfSize
+		if not vInfo.VisitedCorners and pNextButton then
+			vSpaceNeeded = vSpaceNeeded + GetStackingButtonSize(pNextButton, vCorner.IsVert) / 2
+		end
+		local vStraddleThreshold = not vCorner.IsVert and vInfo.Corner:sub(1, 6) == "BOTTOM"
+			and (2 * vHalfSize - 2) or vHalfSize
+		local vCanStraddle = vInfo.VisitedCorners and not vClosingCorner
+			and vCenter <= vLength and vInfo.SpaceRemaining >= vStraddleThreshold
+		if vSpaceNeeded <= vLength or vCanStraddle then
+			local vButtonScale = pButton:GetScale()
+			pButton:SetAlpha(1)
+			Mappy.SetFrameLevel(pButton, vInfo.ButtonFrameLevel)
+			pButton:Mappy_ClearAllPoints()
+			pButton:Mappy_SetPoint("CENTER", vInfo.StackingParent, vInfo.Corner,
+				(vCorner.HorizInsetDir * vInfo.StackingInsetX + vCorner.HorizGap * vCenter) / vButtonScale,
+				(vCorner.VertInsetDir * vInfo.StackingInsetY + vCorner.VertGap * vCenter) / vButtonScale)
+			vInfo.SpaceRemaining = vLength - vCenter - vHalfSize
+			vInfo.PreviousButton = pButton
+			vInfo.PreviousLeft, vInfo.PreviousRight = vLeft, vRight
+			vInfo.PreviousBottom, vInfo.PreviousTop = vBottom, vTop
+			if not vInfo.FirstButton then
+				vInfo.FirstButton = pButton
+				vInfo.FirstLeft, vInfo.FirstRight = vLeft, vRight
+				vInfo.FirstBottom, vInfo.FirstTop = vBottom, vTop
+			end
+			return
+		end
+
+		if vClosingCorner then
+			return true
+		end
+		vInfo.Corner = vCorner.NextCorner
+		vInfo.CornerInfo = (self.CurrentProfile.CCW and self.CornerInfoCCW or self.CornerInfo)[vInfo.Corner]
+		if vInfo.VisitedCorners then
+			vInfo.VisitedCorners[vInfo.Corner] = true
+		end
+		vInfo.SpaceRemaining = vInfo.CornerInfo.IsVert and (vInfo.Top - vInfo.Bottom) or (vInfo.Right - vInfo.Left)
+		vNewSide = true
 	end
-
-	pButton:Mappy_ClearAllPoints()
-
-	if not self.StackingInfo.PreviousButton then
-		pButton:Mappy_SetPoint(
-				"CENTER",
-				self.StackingInfo.StackingParent,
-				self.StackingInfo.Corner,
-				self.StackingInfo.CornerInfo.HorizInsetDir * self.StackingInfo.StackingInsetX,
-				self.StackingInfo.CornerInfo.VertInsetDir * self.StackingInfo.StackingInsetY)
-
-		self.StackingInfo.PreviousButton = pButton
-	else
-		pButton:Mappy_SetPoint(
-				self.StackingInfo.CornerInfo.AnchorPoint,
-				self.StackingInfo.PreviousButton,
-				self.StackingInfo.CornerInfo.RelativePoint,
-				self.StackingInfo.CornerInfo.HorizGap + MiniOffsetH,
-                self.StackingInfo.CornerInfo.VertGap + MiniOffsetV)
-	end
-
-	self.StackingInfo.SpaceRemaining = self.StackingInfo.SpaceRemaining - vSpaceUsed
-	self.StackingInfo.PreviousButton = pButton
+	return true
 end
 
 function Mappy:SetMinimapAlpha(pAlpha)
@@ -1582,11 +1551,12 @@ function Mappy:StackMinimapButtons()
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
     end
-    if MinimapCluster.IndicatorFrame.MailFrame then
-        MinimapCluster.IndicatorFrame.MailFrame:ClearAllPoints()
+	local vIndicatorFrame = MinimapCluster.IndicatorFrame
+    if vIndicatorFrame and vIndicatorFrame.MailFrame then
+        vIndicatorFrame.MailFrame:ClearAllPoints()
     end
-    if MinimapCluster.IndicatorFrame.CraftingOrderFrame then
-        MinimapCluster.IndicatorFrame.CraftingOrderFrame:ClearAllPoints()
+    if vIndicatorFrame and vIndicatorFrame.CraftingOrderFrame then
+        vIndicatorFrame.CraftingOrderFrame:ClearAllPoints()
     end
     if MinimapCluster.Tracking then
          MinimapCluster.Tracking:ClearAllPoints()
@@ -1598,54 +1568,54 @@ function Mappy:StackMinimapButtons()
         MinimapCluster.InstanceDifficulty:ClearAllPoints()
     end
 
-	-- Stack all the known buttons
-
-	self:BeginStackingButtons()
-
-	local	vButton
-
-	for _, vNextButton in pairs(self.MinimapButtons) do
-
-        -- handle special case (avoid showing empty box)
-        if vButton and vButton == MinimapCluster.InstanceDifficulty then
-            local _, instanceType, difficulty, _, _, _, _, _, _ = GetInstanceInfo()
-
-            if not difficulty or not ( instanceType == "raid"
-            or instanceType == "party" or instanceType == "scenario" ) then
-                -- hide unclickable invisible button
-                vButton:Hide()
-
-                vButton = nil
-            else
-                -- instance content, show button
-                vButton:Show()
-            end
-        end
-
-        -- TODO: Do the same for Delves but with their special stupid function checker
-        -- since they don't work with GetInstanceInfo()
-        -- Reuse my Delve code I did for DynamicCam situations PR
-        -- Otherwise it stays empty on exiting the Delve and it pisses me off
-
-		if vNextButton.Mappy_SetPoint then
-			if vButton and vButton:IsVisible() then
-				self:StackButton(vButton, vNextButton)
+	-- Apply visibility rules before looking ahead; hidden buttons consume no
+	-- capacity and are never shown merely because they were registered.
+	for _, vButton in ipairs(self.MinimapButtons) do
+		vButton:SetParent(MinimapCluster)
+		if vButton == MinimapCluster.InstanceDifficulty then
+			local _, vInstanceType, vDifficulty = GetInstanceInfo()
+			if vDifficulty and (vInstanceType == "raid" or vInstanceType == "party" or vInstanceType == "scenario") then
+				vButton:Show()
+			else
+				vButton:Hide()
 			end
-
-			vButton = vNextButton
-        else
-            -- Unarranged buttons get the same parent and level as stacked ones
-            vNextButton:SetParent(MinimapCluster)
-            Mappy.SetFrameLevel(vNextButton, self.StackingInfo.ButtonFrameLevel)
 		end
 	end
 
-	if vButton and vButton:IsVisible() then
-		self:StackButton(vButton, nil)
+	local function GetNextVisibleStackButton(pStartIndex)
+		for vIndex = pStartIndex, #self.MinimapButtons do
+			local vButton = self.MinimapButtons[vIndex]
+			if vButton.Mappy_SetPoint and vButton.Mappy_ClearAllPoints and vButton:IsVisible() then
+				return vIndex, vButton
+			end
+		end
+	end
+
+	local function StackButtonRange(pStartIndex)
+		local vIndex, vButton = GetNextVisibleStackButton(pStartIndex)
+		while vButton do
+			local vNextIndex, vNextButton = GetNextVisibleStackButton(vIndex + 1)
+			if self:StackButton(vButton, vNextButton) then
+				return vIndex
+			end
+			vIndex, vButton = vNextIndex, vNextButton
+		end
+	end
+
+	self:BeginStackingButtons()
+	for _, vButton in ipairs(self.MinimapButtons) do
+		if not vButton.Mappy_SetPoint then
+			Mappy.SetFrameLevel(vButton, self.StackingInfo.ButtonFrameLevel)
+		end
+	end
+	local vOverflowIndex = StackButtonRange(1)
+	if vOverflowIndex and not self.CurrentProfile.StackToScreen then
+		self:BeginStackingButtons(true)
+		StackButtonRange(vOverflowIndex)
 	end
 
 	-- Keep the Group Finder eye art under the clicky button area (Forever client)
-	if self.MinimapButtonsByFrame[QueueStatusButton] then
+	if QueueStatusButton and QueueStatusButton.Eye and self.MinimapButtonsByFrame[QueueStatusButton] then
 		QueueStatusButton.Eye:SetFrameLevel(QueueStatusButton:GetFrameLevel() - 1)
 	end
 
