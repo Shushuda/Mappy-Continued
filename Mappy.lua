@@ -1493,6 +1493,74 @@ function Mappy:SetMinimapSize(pSize)
 	self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 end
 
+function Mappy:GetEditModeMinimapScale()
+    -- GetActiveLayoutInfo uses the manager's preset-expanded list, not GetLayouts' raw list.
+    local vLayout = EditModeManagerFrame:GetActiveLayoutInfo()
+    if (not vLayout or vLayout.layoutType == Enum.EditModeLayoutType.Preset)
+    and self.CurrentProfile.MinimapScale then
+        return self.CurrentProfile.MinimapScale
+    end
+    for _, vSystem in ipairs(vLayout and vLayout.systems or {}) do
+        if vSystem.system == Enum.EditModeSystem.Minimap then
+            for _, vSetting in ipairs(vSystem.settings) do
+                if vSetting.setting == Enum.EditModeMinimapSetting.Size then
+                    -- EditModeSettingDisplayInfo: 50..200%, in 10% steps.
+                    return (50 + vSetting.value * 10) / 100
+                end
+            end
+        end
+    end
+    return 1
+end
+
+function Mappy:SetEditModeMinimapScale(pScale)
+    if self.DisableUpdates or InCombatLockdown()
+    or EditModeManagerFrame:IsEditModeActive()
+    or EditModeManagerFrame:IsEditModeLocked()
+    or EditModeManagerFrame.layoutApplyInProgress
+    or (MinimapCluster:IsProtected() and not MinimapCluster:CanChangeProtectedState()) then
+        return
+    end
+
+    local vValue = math.floor((math.max(0.5, math.min(2, pScale)) * 100 - 50) / 10 + 0.5)
+    local vLayout = EditModeManagerFrame:GetActiveLayoutInfo()
+    if vLayout and (vLayout.layoutType == Enum.EditModeLayoutType.Account
+    or vLayout.layoutType == Enum.EditModeLayoutType.Character) then
+        -- Save the same expanded structure Blizzard saves, without modifying its live tables.
+        -- Raw C_EditMode.GetLayouts().layouts excludes presets; activeLayout does not.
+        local vLayoutInfo = CopyTable(EditModeManagerFrame.layoutInfo)
+        local vActiveLayout = vLayoutInfo.layouts[vLayoutInfo.activeLayout]
+        for _, vSystem in ipairs(vActiveLayout.systems) do
+            if vSystem.system == Enum.EditModeSystem.Minimap then
+                for _, vSetting in ipairs(vSystem.settings) do
+                    if vSetting.setting == Enum.EditModeMinimapSetting.Size then
+                        if vSetting.value ~= vValue then
+                            vSetting.value = vValue
+                            C_EditMode.SaveLayouts(vLayoutInfo)
+                        end
+                        self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+                        return
+                    end
+                end
+            end
+        end
+    elseif not vLayout or vLayout.layoutType == Enum.EditModeLayoutType.Preset then
+        -- Presets are not editable; never borrow or overwrite another custom layout.
+        self.CurrentProfile.MinimapScale = (50 + vValue * 10) / 100
+        self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
+    end
+end
+
+function Mappy:UpdateSizeSliderText()
+    if not self.AppearancePanel or not self.AppearancePanel.SizeSlider then
+        return
+    end
+    local vSize = self.CurrentProfile.MinimapSize or 140
+    local vScale = self:GetEditModeMinimapScale()
+    local vPixels = math.floor(vSize * vScale * MinimapCluster:GetEffectiveScale() + 0.5)
+    MappySizeSliderText:SetText(string.format("Size - %dpx (%g x %d%%)", vPixels, vSize, math.floor(vScale * 100 + 0.5)))
+end
+
 function Mappy:SetZoomButtonsCorner(pCorner)
     local vCorner = pCorner:upper()
     if self.ZoomButtonPositions[vCorner] then
@@ -1517,8 +1585,27 @@ function Mappy:ConfigureZoomButtons()
 end
 
 function Mappy:OverrideEditModeSize()
+    if InCombatLockdown() or EditModeManagerFrame:IsEditModeActive()
+    or (MinimapCluster:IsProtected() and not MinimapCluster:CanChangeProtectedState()) then
+        return
+    end
+
     -- Override Edit Mode size
     MinimapCluster.MinimapContainer:SetScale(1)
+
+    local vSize = self.CurrentProfile.MinimapSize or 140
+    local vScale = self:GetEditModeMinimapScale()
+    if not self:IsMinimapInFarmHud() then
+        -- Scale the map and its markers, not the sibling addon buttons.
+        Minimap:SetWidth(vSize)
+        Minimap:SetHeight(vSize)
+        Minimap:Mappy_ClearAllPoints()
+        Minimap:Mappy_SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
+        Minimap:SetScale(vScale * 1.001) -- Poke scaling to refresh the minimap size
+        Minimap:SetScale(vScale)
+    end
+    MinimapCluster:SetWidth(vSize * vScale)
+    MinimapCluster:SetHeight(vSize * vScale)
 
     -- Override day/night button scaling (Forever client)
     if MinimapCluster.DielFrame then
@@ -1536,6 +1623,10 @@ function Mappy:ConfigureMinimap()
 	if MinimapCluster:IsProtected() and not MinimapCluster:CanChangeProtectedState() then
 		return
 	end
+
+    if InCombatLockdown() or EditModeManagerFrame:IsEditModeLocked() then
+        return
+    end
 
     -- Don't touch the frame if in Edit Mode, it's a taint monster
     if EditModeManagerFrame:IsEditModeActive() then
@@ -1562,22 +1653,11 @@ function Mappy:ConfigureMinimap()
     EventRegistry:TriggerEvent("Minimap.OnScaleUpdated", 1)
 
     if not self:IsMinimapInFarmHud() then
-	    Minimap:SetWidth(self.CurrentProfile.MinimapSize)
-	    Minimap:SetHeight(self.CurrentProfile.MinimapSize)
-
         -- Move LibDBIcon buttons to the new border
         local vDBIcon = LibStub("LibDBIcon-1.0", true)
         if vDBIcon then
             vDBIcon:SetButtonRadius(vDBIcon.radius)
         end
-    end
-
-	MinimapCluster:SetWidth(self.CurrentProfile.MinimapSize)
-	MinimapCluster:SetHeight(self.CurrentProfile.MinimapSize)
-
-    if not self:IsMinimapInFarmHud() then
-	    Minimap:SetScale(1.001) -- Poke the scaling to force a refresh of the minimap size
-	    Minimap:SetScale(1)
     end
 
 	if TimeManagerClockButton then
@@ -1613,6 +1693,7 @@ function Mappy:ConfigureMinimap()
 
     self:StackMinimapButtons()
     self:AdjustAlpha()
+    self:UpdateSizeSliderText()
 end
 
 function Mappy:StackMinimapButtons()
@@ -2077,6 +2158,12 @@ function Mappy:EditModeExit()
 end
 
 function Mappy:EditModeEnter()
+    -- Edit Mode scales MinimapContainer itself; don't compound Mappy's map scale.
+    if not InCombatLockdown() and not Mappy:IsMinimapInFarmHud()
+    and (not MinimapCluster:IsProtected() or MinimapCluster:CanChangeProtectedState()) then
+        Minimap:SetScale(1)
+    end
+
     -- Move the minimap to its Edit Mode position
     if Mappy.CurrentProfile.UseAddonPosition then
         Mappy:ApplyEditModeAnchor(MinimapCluster)
@@ -2091,15 +2178,21 @@ function Mappy:EditModeEnter()
 end
 
 function Mappy:EditModeLayoutUpdated()
-    -- Addon positioning only, ConfigureMinimap's SetActiveLayout would loop back here
-    if Mappy.CurrentProfile.UseAddonPosition then
-        -- Undo Edit Mode's position and size instantly (unless editing)
-        -- No scheduler to avoid one frame visual bounce between positions
-        if not EditModeManagerFrame:IsEditModeActive() then
+    -- Do not ConfigureMinimap here: its SetActiveLayout would loop back into this hook.
+    if Mappy.AppearancePanel and Mappy.AppearancePanel:IsVisible() then
+        Mappy.AppearancePanel:OnShow()
+    end
+    if not InCombatLockdown() and not EditModeManagerFrame:IsEditModeLocked()
+    and not EditModeManagerFrame:IsEditModeActive()
+    and (not MinimapCluster:IsProtected() or MinimapCluster:CanChangeProtectedState()) then
+        -- Undo Edit Mode's size instantly, even when it owns positioning.
+        if Mappy.CurrentProfile.UseAddonPosition then
             Mappy:SetFramePosition(MinimapCluster, Mappy.CurrentProfile)
-            Mappy:OverrideEditModeSize()
         end
-
+        Mappy:OverrideEditModeSize()
+        Mappy:ConfigureZoomButtons()
+    end
+    if Mappy.CurrentProfile.UseAddonPosition then
         Mappy:LoadProfile(Mappy.CurrentProfile)
     end
 end
@@ -3121,19 +3214,39 @@ function Mappy._AppearancePanel:Construct(pParent)
     self.SizeSlider:SetObeyStepOnDrag(true)
     self.SizeSlider:SetStepsPerPage(1)
     -- initial value
-    MappySizeSliderText:SetText("Size - " .. (Mappy.CurrentProfile.MinimapSize or 1))
+    Mappy:UpdateSizeSliderText()
     -- action
     self.SizeSlider:SetScript("OnValueChanged", function (self, value)
         local vSize = tonumber(string.format("%.2f", value))
         Mappy:SetMinimapSize(vSize)
-        MappySizeSliderText:SetText("Size - " .. vSize)
+        Mappy:UpdateSizeSliderText()
+    end)
+
+    -- Edit Mode scale (presets use the profile's local scale instead)
+    self.ScaleSlider = CreateFrame("Slider", "MappyScaleSlider", self.ScrollChild or self, "OptionsSliderTemplate")
+    self.ScaleSlider:SetWidth(380)
+    self.ScaleSlider:SetPoint("TOPLEFT", self.SizeSlider, "BOTTOMLEFT", 0, -30)
+    self.ScaleSlider:SetMinMaxValues(50, 200)
+    self.ScaleSlider:SetValueStep(10)
+    self.ScaleSlider:SetObeyStepOnDrag(true)
+    self.ScaleSlider:SetStepsPerPage(10)
+    MappyScaleSliderLow:SetText("50%")
+    MappyScaleSliderHigh:SetText("200%")
+    MappyScaleSliderText:SetText("Scale - 100%")
+    self.ScaleSlider:SetScript("OnValueChanged", function (slider, value, userInput)
+        -- SetValue during refresh must never save an Edit Mode layout.
+        if userInput and not Mappy.DisableUpdates then
+            Mappy:SetEditModeMinimapScale(value / 100)
+        end
+        MappyScaleSliderText:SetText(string.format("Scale - %.0f%%", Mappy:GetEditModeMinimapScale() * 100))
+        Mappy:UpdateSizeSliderText()
     end)
 
 	-- Alpha slider
 
 	self.AlphaSlider = CreateFrame("Slider", "MappyAlphaSlider", self, "OptionsSliderTemplate")
 	self.AlphaSlider:SetWidth(180)
-	self.AlphaSlider:SetPoint("TOPLEFT", self.SizeSlider, "BOTTOMLEFT", 0, -35)
+	self.AlphaSlider:SetPoint("TOPLEFT", self.ScaleSlider, "BOTTOMLEFT", 0, -35)
 	MappyAlphaSliderLow:SetText("0%")
 	MappyAlphaSliderHigh:SetText("100%")
 	-- stepping
@@ -3196,8 +3309,8 @@ function Mappy._AppearancePanel:Construct(pParent)
     -- options header
     --------------------------------
     self.OptionsLine = self:CreateLine()
-    self.OptionsLine:SetStartPoint("TOPLEFT", self, 10, -250)
-    self.OptionsLine:SetEndPoint("TOPRIGHT", self, -20, -250)
+    self.OptionsLine:SetStartPoint("TOPLEFT", self.ScrollChild or self, 10, -300)
+    self.OptionsLine:SetEndPoint("TOPRIGHT", self.ScrollChild or self, -20, -300)
     self.OptionsLine:SetColorTexture(1,1,1,0.25)
     self.OptionsLine:SetThickness(2)
 
@@ -3266,9 +3379,13 @@ function Mappy._AppearancePanel:Construct(pParent)
 end
 
 function Mappy._AppearancePanel:OnShow()
+    local vDisableUpdates = Mappy.DisableUpdates
 	Mappy.DisableUpdates = true
 
 	self.SizeSlider:SetValue(Mappy.CurrentProfile.MinimapSize or 140)
+    self.ScaleSlider:SetValue(Mappy:GetEditModeMinimapScale() * 100)
+    MappyScaleSliderText:SetText(string.format("Scale - %.0f%%", Mappy:GetEditModeMinimapScale() * 100))
+    Mappy:UpdateSizeSliderText()
 	self.AlphaSlider:SetValue(Mappy.CurrentProfile.MinimapAlpha or 1)
 	self.CombatAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapCombatAlpha or 0.2)
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
@@ -3286,7 +3403,7 @@ function Mappy._AppearancePanel:OnShow()
 		self.HideArchRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideArchRing)
 	end
 
-	Mappy.DisableUpdates = false
+	Mappy.DisableUpdates = vDisableUpdates
 end
 
 function Mappy._AppearancePanel:OnHide()
