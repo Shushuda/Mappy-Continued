@@ -67,6 +67,12 @@ if MinimapCluster.InstanceDifficulty then
     Mappy.BlizzardMinimalistButtons[MinimapCluster.InstanceDifficulty] = true
 end
 
+-- Forever client
+if Mappy.IsForeverClient then
+    -- Mail icon fills its frame and gets no border, so it's stacked like an addon button
+    Mappy.BlizzardMinimalistButtons[MinimapCluster.IndicatorFrame.MailFrame] = nil
+end
+
 -- Blizzard's minimap insets for buttons Mappy moves
 -- IDs are Blizz's local constants
 Mappy.BlizzardInsetIDs = {
@@ -343,6 +349,7 @@ function Mappy:InitializeSettings()
                 HideArchRing = false,
                 StackGroupFinder = true,
                 AlwaysShowGroupFinder = true,
+                AlwaysShowMail = true,
 			},
 			gather =
 			{
@@ -379,6 +386,7 @@ function Mappy:InitializeSettings()
                 HideArchRing = false,
                 StackGroupFinder = true,
                 AlwaysShowGroupFinder = true,
+                AlwaysShowMail = true,
 			},
 		},
 	}
@@ -802,16 +810,19 @@ function Mappy:EnlargeMinimalistButtons()
     GameTimeBG:SetPoint("CENTER", GameTimeFrame, "CENTER")
     GameTimeBG:SetSize(30,30)
 
-    -- mail
-    local MailFrame = MinimapCluster.IndicatorFrame.MailFrame:CreateTexture(nil, "OVERLAY")
-    MailFrame:SetTexture(136430)
-    MailFrame:SetPoint("CENTER", MiniMapMailIcon, "CENTER", 10, -10)
-    MailFrame:SetSize(53,53)
+    -- mail (Retail client)
+    -- on Forever the icon is displayed as-is
+    if not Mappy.IsForeverClient then
+        local MailFrame = MinimapCluster.IndicatorFrame.MailFrame:CreateTexture(nil, "OVERLAY")
+        MailFrame:SetTexture(136430)
+        MailFrame:SetPoint("CENTER", MiniMapMailIcon, "CENTER", 10, -10)
+        MailFrame:SetSize(53,53)
 
-    local MailFrameBG = MinimapCluster.IndicatorFrame.MailFrame:CreateTexture(nil, "BACKGROUND")
-    MailFrameBG:SetTexture(136467)
-    MailFrameBG:SetPoint("CENTER", MiniMapMailIcon, "CENTER")
-    MailFrameBG:SetSize(25,25)
+        local MailFrameBG = MinimapCluster.IndicatorFrame.MailFrame:CreateTexture(nil, "BACKGROUND")
+        MailFrameBG:SetTexture(136467)
+        MailFrameBG:SetPoint("CENTER", MiniMapMailIcon, "CENTER")
+        MailFrameBG:SetSize(25,25)
+    end
 
     -- crafting orders (Retail client)
     if MinimapCluster.IndicatorFrame.CraftingOrderFrame then
@@ -856,10 +867,6 @@ function Mappy:EnlargeMinimalistButtons()
         -- Calendar border is bigger, so its center sits slightly up and left
         self:ScaleButtonArt(GameTimeFrame, GameTimeFrame, 1.1, -1, 1)
         self:ScaleButtonArt(AddonCompartmentFrame, AddonCompartmentFrame.Text, 1.25, 0, 0)
-
-        -- TODO: Scale the mail icon too, untested since it only shows with unread mail
-        -- The mail border is anchored to MiniMapMailIcon, so scaling the icon drags the border down and right
-        -- Either accept the shift, or pin the border to the icon's current center first
     end
 end
 
@@ -1301,6 +1308,11 @@ function Mappy:StackButton(pButton, pNextButton)
         if tableContains(self.BlizzardMinimalistButtons, self.StackingInfo.PreviousButton) then
             MiniOffsetH = -16
             MiniOffsetV = -16
+        elseif self.StackingInfo.PreviousButton == MinimapCluster.IndicatorFrame.MailFrame then
+            -- Forever client (Retail never enters this and will be caught by the above table lookup instead)
+            -- Mail icon has no border, but its art reaches the frame's edge
+            MiniOffsetH = -11
+            MiniOffsetV = -11
         else
             MiniOffsetH = -7
             MiniOffsetV = -7
@@ -2293,6 +2305,13 @@ function Mappy:SetAlwaysShowGroupFinder(pValue)
     self:SetButtonsAlpha()
 end
 
+function Mappy:SetAlwaysShowMail(pValue)
+    if self.DisableUpdates then return end
+
+    self.CurrentProfile.AlwaysShowMail = pValue
+    self:SetButtonsAlpha()
+end
+
 -- Show buttons on mouseover, hide after a delay
 function Mappy:UpdateButtonAutoHide()
 	if self.CurrentProfile.AutoHideButtons and not self.IsHovering then
@@ -2343,6 +2362,9 @@ function Mappy:SetButtonsAlpha()
     for _, vButton in ipairs(self.MinimapButtons) do
         -- Keep the Group Finder eye visible if enabled (Forever client)
         if vButton == QueueStatusButton and self.CurrentProfile.AlwaysShowGroupFinder then
+            vButton:SetAlpha(vMinimapAlpha)
+        -- Keep the mail icon visible if enabled
+        elseif vButton == MinimapCluster.IndicatorFrame.MailFrame and self.CurrentProfile.AlwaysShowMail then
             vButton:SetAlpha(vMinimapAlpha)
         else
             vButton:SetAlpha(self.ButtonFaderAlpha * vMinimapAlpha)
@@ -3156,11 +3178,18 @@ function Mappy._AppearancePanel:Construct(pParent)
 	self.AutoHideButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoHideButtons(self:GetChecked()) end)
 	MappyAutoHideButtonsCheckbuttonText:SetText("Show buttons ONLY on mouseover")
 
+    -- Mail icon always visible
+
+    self.AlwaysShowMailCheckbutton = CreateFrame("CheckButton", "MappyAlwaysShowMailCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.AlwaysShowMailCheckbutton:SetPoint("TOPLEFT", self.AutoHideButtonsCheckbutton, "TOPLEFT", 30, -25)
+    self.AlwaysShowMailCheckbutton:SetScript("OnClick", function (self) Mappy:SetAlwaysShowMail(self:GetChecked()) end)
+    MappyAlwaysShowMailCheckbuttonText:SetText("Except the mail icon")
+
 	-- Group Finder eye always visible (Forever client)
 
 	if Mappy.IsForeverClient then
 		self.AlwaysShowGroupFinderCheckbutton = CreateFrame("CheckButton", "MappyAlwaysShowGroupFinderCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-		self.AlwaysShowGroupFinderCheckbutton:SetPoint("TOPLEFT", self.AutoHideButtonsCheckbutton, "TOPLEFT", 30, -25)
+		self.AlwaysShowGroupFinderCheckbutton:SetPoint("TOPLEFT", self.AlwaysShowMailCheckbutton, "TOPLEFT", 0, -25)
 		self.AlwaysShowGroupFinderCheckbutton:SetScript("OnClick", function (self) Mappy:SetAlwaysShowGroupFinder(self:GetChecked()) end)
 		MappyAlwaysShowGroupFinderCheckbuttonText:SetText("Except the Group Finder eye")
 	end
@@ -3205,6 +3234,7 @@ function Mappy._AppearancePanel:OnShow()
 	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
 	self.AutoHideButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.AutoHideButtons)
+    self.AlwaysShowMailCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowMail)
 	if self.AlwaysShowGroupFinderCheckbutton then
 		self.AlwaysShowGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowGroupFinder)
 	end
