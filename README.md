@@ -6,22 +6,20 @@ Compatible with Midnight and Forever!
 
 Since the original addon seems pretty much abandoned, I've decided to fork and maintain it. I love this addon too much to find a new one, so I've fixed it instead!
 
-Please bear in mind that I'm not planning on adding new features nor refactoring the code. I want to maintain the currently implemented features with as little modifications of the original codebase as possible. There will be some dirty hacks, which I might pretty-up later.
-
-I _might_ add some new things if you ask for any, but it's going to be a case-by-case thing.
+I used to say I don't plan on adding new features, but I already added a lot so that no longer stands lol. I still prefer to maintain the currently implemented features with as little modifications of the original codebase as possible, but if you have cool ideas for anything new - ask away! It's still going to be a case-by-case thing though.
 
 ## Features
 
 Mappy-Continued is a minimap addon focused on changing the minimap shape into a sleek square.
 
 Other features include:
+* Custom square textures (handmade in Photopea :D )
 * Resizing of the minimap
 * Option to move the minimap via Edit Mode only
 * Option to move the minimap via addon settings only
 * Automatic stacking of minimap buttons along the minimap OR screen
 * Option to show minimap buttons only on mouseover
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
-* Custom square textures for certain Blizzard overlays
 * Zooming in and out with the mouse wheel
 * Alpha settings, separate for combat, movement and default state
 * Option to hide the quest/WQ/archaeology border ring
@@ -29,8 +27,8 @@ Other features include:
 * Gathering overlay support for GatherMate
 * Compatibility with MinimapButtonBag Reborn
 * Compatibility with FarmHud
-* ~~Bigger and/or blinking gathering nodes~~ - **No longer possible since 12.0.7**
-* ~~Classic-style dot for gathering nodes~~ - **No longer possible since 12.0.7**
+* ~~Bigger and/or blinking gathering nodes~~ - **Broken since 12.0.7, working on a workaround**
+* ~~Classic-style dot for gathering nodes~~ - **Broken since 12.0.7, working on a workaround**
 * Player coordinates
 
 ## Slash commands
