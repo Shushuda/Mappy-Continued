@@ -4,14 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mappy-Continued is a World of Warcraft addon that transforms the minimap into a square shape with extensive customization. Written entirely in Lua, it runs directly in WoW with no build step. The TOC file (`Mappy.toc` and `Mappy_Camelot.toc`) defines the load order and metadata.
+Mappy-Continued is a World of Warcraft addon that transforms the minimap into a square shape with extensive customization. Written entirely in Lua, it runs directly in WoW with no build step. The TOC file (`Mappy.toc`, shared by retail and Forever) defines the load order and metadata.
 
 **Maintainer philosophy:** This is a maintenance fork — preserve existing features with minimal changes. Avoid adding new features or refactoring unless explicitly requested.
 
 ## Key Files
 
-- **Mappy.toc** — Addon manifest for retail WoW (Interface version, SavedVariables, load order, optional deps)
-- **Mappy_Camelot.toc** — Addon manifest for WoW Forever (Interface version, SavedVariables, load order, optional deps)
+- **Mappy.toc** — Addon manifest for retail and WoW Forever (Interface versions for both, SavedVariables, load order, optional deps)
 - **Mappy.lua** — Entire addon logic (~3,500 lines): initialization, minimap management, settings UI, profiles, slash commands, gathering integration
 - **Libraries/** — Bundled custom libraries (MC2AddonLib, MC2DebugLib, MC2EventLib, MC2SchedulerLib, MC2UIElementsLib, LibStub, LibDropdown-1.0)
 - **Textures/** — BLP textures for minimap mask and gathering node icons
@@ -167,7 +166,7 @@ The tree is the same on both clients: `UIParent → MinimapCluster → MinimapCo
 - **Private members:** Underscore prefix (e.g., `_OptionsPanel`)
 - **No localization:** All UI strings are hardcoded in English
 - **No formal error handling:** Relies on WoW's built-in error catching
-- **TOC versioning:** Interface version and addon Version are updated manually in `Mappy.toc`
+- **TOC versioning:** Interface versions (retail and Forever, comma-separated on one line) and addon Version are updated manually in `Mappy.toc`. There are no client-specific TOCs, so both clients load this one.
 - **Supported clients:** only the latest retail and Forever releases. Code needed only for an outgoing release gets a `TODO` to remove it once the new release is live.
 
 ## Reference Documentation
@@ -178,11 +177,11 @@ It's a git repo with one branch per WoW client. The working tree is on `live`, s
 - Search: `git -C wow-ui-source grep -n <pattern> origin/<branch> --`
 - Read a file: `git -C wow-ui-source show origin/<branch>:<path>`
 
-| Branch | Client | Mappy TOC |
-|---|---|---|
-| `live` | Retail | `Mappy.toc` |
-| `forever` | WoW Forever | `Mappy_Camelot.toc` |
-| `ptr`, `ptr2`, `beta` | Retail test clients | `Mappy.toc` |
+| Branch | Client |
+|---|---|
+| `live` | Retail |
+| `forever` | WoW Forever |
+| `ptr`, `ptr2`, `beta` | Retail test clients |
 
 Other branches are for clients Mappy doesn't support, so ignore them. Each branch's `version.txt` holds its exact build, and test branches can lag behind `live`. Remote branches are only as current as the last `git fetch`. On `forever`, Forever-only code lives in `Camelot/` subfolders, and Blizzard's TOCs tag those files `[AllowLoadGameType camelot]` (e.g. `Blizzard_Minimap/Camelot/Diel.lua`).
 
