@@ -263,6 +263,52 @@ local function tableContains(table, key)
     return table[key] ~= nil
 end
 
+-- Own only properties we actually change, without retaining retired minimap pins.
+local SmoothedMinimapTextures = setmetatable({}, {__mode = "k"})
+
+local function IsSmoothingValueReadable(pValue)
+	return not (issecretvalue and issecretvalue(pValue))
+		and (not canaccessvalue or canaccessvalue(pValue))
+end
+
+local function CanSmoothMinimapObject(pObject)
+	if not IsSmoothingValueReadable(pObject) then return false end
+	local vForbidden = pObject:IsForbidden()
+	if not IsSmoothingValueReadable(vForbidden) or vForbidden then return false end
+	if pObject.HasSecretValues then
+		local vSecret = pObject:HasSecretValues()
+		if not IsSmoothingValueReadable(vSecret) or vSecret then return false end
+	end
+	if pObject.IsProtected then
+		local vProtected = pObject:IsProtected()
+		if not IsSmoothingValueReadable(vProtected) then return false end
+		if vProtected then
+			local vCanChange = pObject:CanChangeProtectedState()
+			if not IsSmoothingValueReadable(vCanChange) or not vCanChange then return false end
+		end
+	end
+	return true
+end
+
+local function GetMinimapTextureSnapping(pTexture)
+	if not CanSmoothMinimapObject(pTexture)
+	or not pTexture.IsObjectType or not pTexture.IsSnappingToPixelGrid
+	or not pTexture.GetTexelSnappingBias or not pTexture.SetSnapToPixelGrid
+	or not pTexture.SetTexelSnappingBias then return end
+	local vIsTexture = pTexture:IsObjectType("Texture")
+	if not IsSmoothingValueReadable(vIsTexture) or not vIsTexture then return end
+	if pTexture.GetParent then
+		local vParent = pTexture:GetParent()
+		if not IsSmoothingValueReadable(vParent)
+		or (vParent and not CanSmoothMinimapObject(vParent)) then return end
+	end
+	local vSnap = pTexture:IsSnappingToPixelGrid()
+	local vBias = pTexture:GetTexelSnappingBias()
+	if not IsSmoothingValueReadable(vSnap) or not IsSmoothingValueReadable(vBias)
+	or type(vSnap) ~= "boolean" or type(vBias) ~= "number" then return end
+	return vSnap, vBias
+end
+
 --
 
 function Mappy:AddonLoaded(pEventID, pAddonName)
@@ -343,6 +389,7 @@ function Mappy:InitializeSettings()
                 HideArchRing = false,
                 StackGroupFinder = true,
                 AlwaysShowGroupFinder = true,
+                IconSmoothing = false,
 			},
 			gather =
 			{
@@ -379,6 +426,7 @@ function Mappy:InitializeSettings()
                 HideArchRing = false,
                 StackGroupFinder = true,
                 AlwaysShowGroupFinder = true,
+                IconSmoothing = false,
 			},
 		},
 	}
@@ -440,6 +488,18 @@ function Mappy:InitializeMinimap()
 	self.EventLib:RegisterEvent("PLAYER_STOPPED_MOVING", self.StoppedMoving, self)
 
     self.EventLib:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED", self.TalentChanged, self)
+
+	-- Scan after Blizzard's event handlers have created or refreshed texture pins.
+	self.EventLib:RegisterEvent("PLAYER_ENTERING_WORLD", self.MinimapSmoothingChanged, self)
+	self.EventLib:RegisterEvent("PLAYER_REGEN_ENABLED", self.MinimapSmoothingChanged, self)
+	self.EventLib:RegisterEvent("MINIMAP_UPDATE_ZOOM", self.MinimapSmoothingChanged, self)
+	self.EventLib:RegisterEvent("MINIMAP_UPDATE_TRACKING", self.MinimapSmoothingChanged, self)
+	if not self.IsForeverClient then
+		self.EventLib:RegisterEvent("AREA_POIS_UPDATED", self.MinimapSmoothingChanged, self)
+		self.EventLib:RegisterEvent("VIGNETTES_UPDATED", self.MinimapSmoothingChanged, self)
+	end
+	Minimap:HookScript("OnShow", function() self:MinimapSmoothingChanged() end)
+	self:ApplyMinimapSmoothing()
 
 	-- Hover alpha handling
 	Minimap:HookScript("OnEnter", function() Mappy:MinimapOnEnter() end)
@@ -1110,6 +1170,7 @@ function Mappy:LoadProfile(pProfile)
 	local vProfileChanged = self.CurrentProfile ~= pProfile
 	
 	self.CurrentProfile = pProfile
+	self:ApplyMinimapSmoothing()
 	self:UpdateButtonAutoHide()
 
 	if vProfileChanged then
@@ -2091,6 +2152,56 @@ function Mappy:SetOldGatherNodes(pOld)
     self:ConfigureMinimapOptions()
 end
 
+function Mappy:MinimapSmoothingChanged()
+	if self.CurrentProfile.IconSmoothing ~= true and not next(SmoothedMinimapTextures) then return end
+	self.SchedulerLib:ScheduleUniqueTask(0, self.ApplyMinimapSmoothing, self)
+end
+
+-- Only Lua texture regions are eligible; engine-rendered blips are not regions.
+function Mappy:ApplyMinimapSmoothing()
+	if self.CurrentProfile.IconSmoothing ~= true then
+		for vTexture, vOriginal in pairs(SmoothedMinimapTextures) do
+			local vSnap, vBias = GetMinimapTextureSnapping(vTexture)
+			if vSnap ~= nil then
+				-- Leave properties another addon has changed since our write alone.
+				if vOriginal.Snap ~= nil and vSnap == false then
+					vTexture:SetSnapToPixelGrid(vOriginal.Snap)
+				end
+				if vOriginal.Bias ~= nil and vBias == 0 then
+					vTexture:SetTexelSnappingBias(vOriginal.Bias)
+				end
+				SmoothedMinimapTextures[vTexture] = nil
+			end
+		end
+		return
+	end
+
+	local function SmoothFrame(pFrame)
+		if not CanSmoothMinimapObject(pFrame) then return end
+		for _, vTexture in ipairs({pFrame:GetRegions()}) do
+			local vSnap, vBias = GetMinimapTextureSnapping(vTexture)
+			if vSnap ~= nil and not SmoothedMinimapTextures[vTexture]
+			and (vSnap or vBias ~= 0) then
+				SmoothedMinimapTextures[vTexture] = {
+					Snap = vSnap and vSnap or nil,
+					Bias = vBias ~= 0 and vBias or nil,
+				}
+				if vSnap then vTexture:SetSnapToPixelGrid(false) end
+				if vBias ~= 0 then vTexture:SetTexelSnappingBias(0) end
+			end
+		end
+		for _, vChild in ipairs({pFrame:GetChildren()}) do
+			SmoothFrame(vChild)
+		end
+	end
+	SmoothFrame(Minimap)
+end
+
+function Mappy:SetIconSmoothing(pEnabled)
+	self.CurrentProfile.IconSmoothing = pEnabled == true
+	self:ApplyMinimapSmoothing()
+end
+
 function Mappy:SetHideTracking(pHide)
 	if pHide then
 		self.CurrentProfile.HideTracking = true
@@ -2782,6 +2893,46 @@ function GetMinimapShape()
 	return "SQUARE"
 end
 
+local function UpdateOptionsScrollHeight(pPanel)
+	local vScrollFrame = pPanel.ScrollFrame
+	local vContent = pPanel.ScrollChild
+	vContent:SetWidth(math.max(1, vScrollFrame:GetWidth()))
+	local vTop = vContent:GetTop()
+	if not vTop then return end
+
+	local vBottom = vTop
+	local function Measure(pFrame)
+		for _, vRegion in ipairs({pFrame:GetRegions()}) do
+			local vRegionBottom = vRegion:GetBottom()
+			if vRegionBottom and vRegion:IsShown() then
+				vBottom = math.min(vBottom, vRegionBottom)
+			end
+		end
+		for _, vChild in ipairs({pFrame:GetChildren()}) do
+			local vChildBottom = vChild:GetBottom()
+			if vChildBottom and vChild:IsShown() then
+				vBottom = math.min(vBottom, vChildBottom)
+				Measure(vChild)
+			end
+		end
+	end
+	Measure(vContent)
+	vContent:SetHeight(math.max(vScrollFrame:GetHeight(), vTop - vBottom + 30))
+	vScrollFrame:UpdateScrollChildRect()
+	vScrollFrame:SetVerticalScroll(math.min(vScrollFrame:GetVerticalScroll(), vScrollFrame:GetVerticalScrollRange()))
+end
+
+local function CreateOptionsScrollFrame(pPanel)
+	pPanel.ScrollFrame = CreateFrame("ScrollFrame", nil, pPanel, "UIPanelScrollFrameTemplate")
+	pPanel.ScrollFrame:SetPoint("TOPLEFT", 3, -3)
+	pPanel.ScrollFrame:SetPoint("BOTTOMRIGHT", -26, 3)
+	pPanel.ScrollChild = CreateFrame("Frame", nil, pPanel.ScrollFrame)
+	pPanel.ScrollChild:SetSize(1, 1)
+	pPanel.ScrollFrame:SetScrollChild(pPanel.ScrollChild)
+	pPanel.ScrollFrame:SetScript("OnSizeChanged", function() UpdateOptionsScrollHeight(pPanel) end)
+	return pPanel.ScrollChild
+end
+
 ----------------------------------------
 Mappy._OptionsPanel = {}
 ----------------------------------------
@@ -2807,44 +2958,46 @@ function Mappy._OptionsPanel:Construct(pParent)
     --------------------------------
     -- title header
     --------------------------------
-	self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 20, -20)
+	local c = CreateOptionsScrollFrame(self)
+
+	self.Title = c:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	self.Title:SetPoint("TOPLEFT", c, "TOPLEFT", 20, -20)
 	self.Title:SetText("Mappy Continued")
 
-    self.Desc = self:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
+    self.Desc = c:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
     self.Desc:SetPoint("TOPLEFT", self.Title, 1, -30)
     self.Desc:SetText("Main settings. Please report bugs on GitHub <3")
 
     --------------------------------
     -- main settings header
     --------------------------------
-    self.SettingsLine = self:CreateLine()
-    self.SettingsLine:SetStartPoint("TOPLEFT", self, 10, -100)
-    self.SettingsLine:SetEndPoint("TOPRIGHT", self, -20, -100)
+    self.SettingsLine = c:CreateLine()
+    self.SettingsLine:SetStartPoint("TOPLEFT", c, 10, -100)
+    self.SettingsLine:SetEndPoint("TOPRIGHT", c, -20, -100)
     self.SettingsLine:SetColorTexture(1,1,1,0.25)
     self.SettingsLine:SetThickness(2)
 
-    self.SettingsHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.SettingsHeader = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.SettingsHeader:SetPoint("TOPLEFT", self.SettingsLine, 5, 13)
     self.SettingsHeader:SetText("Settings")
 
 	-- Ghost
 
-	self.GhostCheckbutton = CreateFrame("CheckButton", "MappyGhostCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.GhostCheckbutton = CreateFrame("CheckButton", "MappyGhostCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.GhostCheckbutton:SetPoint("TOPLEFT", self.SettingsLine, "BOTTOMLEFT", 10, -15)
 	self.GhostCheckbutton:SetScript("OnClick", function (self) Mappy:SetGhost(self:GetChecked()) end)
 	MappyGhostCheckbuttonText:SetText("Pass clicks through")
 
     -- Use Addon positioning
 
-    self.AddonPositionCheckbutton = CreateFrame("CheckButton", "MappyAddonPositionCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.AddonPositionCheckbutton = CreateFrame("CheckButton", "MappyAddonPositionCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
     self.AddonPositionCheckbutton:SetPoint("TOPLEFT", self.GhostCheckbutton, "TOPLEFT", 0, -25)
     self.AddonPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetAddonPosition(self:GetChecked()) end)
     MappyAddonPositionCheckbuttonText:SetText("Use Addon positioning instead of Edit Mode")
 
     -- Lock position
 
-	self.LockPositionCheckbutton = CreateFrame("CheckButton", "MappyLockPositionCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.LockPositionCheckbutton = CreateFrame("CheckButton", "MappyLockPositionCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.LockPositionCheckbutton:SetPoint("TOPLEFT", self.AddonPositionCheckbutton, "TOPLEFT", 0, -25)
 	self.LockPositionCheckbutton:SetScript("OnClick", function (self) Mappy:SetLockPosition(self:GetChecked()) end)
 	MappyLockPositionCheckbuttonText:SetText("Lock position")
@@ -2853,27 +3006,27 @@ function Mappy._OptionsPanel:Construct(pParent)
     -- 12.0.7: Blizzard removed Minimap:SetBlipTexture() from API
     -- TODO: Find a workaround. Custom blips overlapping these? Some addons seem to detect exact node names and coords just fine...
 
-    self.GatherHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.GatherHeader = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.GatherHeader:SetPoint("TOPRIGHT", self.SettingsLine, "TOPRIGHT", -5, 13)
     self.GatherHeader:SetText("Blizz broke it in 12.0.7. Working on a workaround!")
 
 	-- Flash gathering nodes
 
-	self.FlashGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyFlashGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.FlashGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyFlashGatherNodesCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.FlashGatherNodesCheckbutton:SetPoint("TOPLEFT", self.GhostCheckbutton, "TOPLEFT", 340, 0)
 	self.FlashGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetFlashGatherNodes(self:GetChecked()) end)
 	MappyFlashGatherNodesCheckbuttonText:SetText("Flash gathering nodes")
 
 	-- Small gathering nodes
 
-	self.SmallGatherNodesCheckbutton = CreateFrame("CheckButton", "MappySmallGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.SmallGatherNodesCheckbutton = CreateFrame("CheckButton", "MappySmallGatherNodesCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.SmallGatherNodesCheckbutton:SetPoint("TOPLEFT", self.FlashGatherNodesCheckbutton, "TOPLEFT", 0, -25)
 	self.SmallGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetSmallGatherNodes(self:GetChecked()) end)
 	MappySmallGatherNodesCheckbuttonText:SetText("Small gathering nodes")
 
     -- Old gathering nodes
 
-    self.OldGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyOldGatherNodesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.OldGatherNodesCheckbutton = CreateFrame("CheckButton", "MappyOldGatherNodesCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
     self.OldGatherNodesCheckbutton:SetPoint("TOPLEFT", self.SmallGatherNodesCheckbutton, "TOPLEFT", 0, -25)
     self.OldGatherNodesCheckbutton:SetScript("OnClick", function (self) Mappy:SetOldGatherNodes(self:GetChecked()) end)
     MappyOldGatherNodesCheckbuttonText:SetText("Classic-style gathering nodes")
@@ -2881,43 +3034,58 @@ function Mappy._OptionsPanel:Construct(pParent)
     --------------------------------
     -- coords settings header
     --------------------------------
-    self.CoordLine = self:CreateLine()
-    self.CoordLine:SetStartPoint("TOPLEFT", self, 10, -250)
-    self.CoordLine:SetEndPoint("TOPRIGHT", self, -20, -250)
+    self.CoordLine = c:CreateLine()
+    self.CoordLine:SetStartPoint("TOPLEFT", c, 10, -250)
+    self.CoordLine:SetEndPoint("TOPRIGHT", c, -20, -250)
     self.CoordLine:SetColorTexture(1,1,1,0.25)
     self.CoordLine:SetThickness(2)
 
-    self.CoordHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.CoordHeader = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.CoordHeader:SetPoint("TOPLEFT", self.CoordLine, 5, 13)
     self.CoordHeader:SetText("Coordinates")
 
 	-- Hide coordinates
 
-    self.HideCoordinatesCheckbutton = CreateFrame("CheckButton", "MappyHideCoordinatesCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.HideCoordinatesCheckbutton = CreateFrame("CheckButton", "MappyHideCoordinatesCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
     self.HideCoordinatesCheckbutton:SetPoint("TOPLEFT", self.CoordLine, "BOTTOMLEFT", 10, -15)
     self.HideCoordinatesCheckbutton:SetScript("OnClick", function (self) Mappy:SetShowCoordinates(self:GetChecked()) end)
     MappyHideCoordinatesCheckbuttonText:SetText("Show coordinates")
 
     -- Coordinates corner
 
-    self.CoordBottomLeftCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomLeftCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.CoordBottomLeftCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomLeftCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
     self.CoordBottomLeftCheckbutton:SetPoint("TOPLEFT", self.HideCoordinatesCheckbutton, "TOPLEFT", 30, -25)
-    self.CoordBottomLeftCheckbutton:SetScript("OnClick", function (button) Mappy:SetCoordinatesAnchor("BOTTOMLEFT") self:OnShow() end)
+    self.CoordBottomLeftCheckbutton:SetScript("OnClick", function ()
+        Mappy:SetCoordinatesAnchor("BOTTOMLEFT")
+        self.CoordBottomLeftCheckbutton:SetChecked(true)
+        self.CoordBottomCenterCheckbutton:SetChecked(false)
+        self.CoordBottomRightCheckbutton:SetChecked(false)
+    end)
     MappyCoordBottomLeftCheckbuttonText:SetText("Bottom-left")
 
-    self.CoordBottomCenterCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomCenterCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.CoordBottomCenterCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomCenterCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
     self.CoordBottomCenterCheckbutton:SetPoint("TOPLEFT", self.CoordBottomLeftCheckbutton, "TOPLEFT", 120, 0)
-    self.CoordBottomCenterCheckbutton:SetScript("OnClick", function (button) Mappy:SetCoordinatesAnchor("BOTTOM") self:OnShow() end)
+    self.CoordBottomCenterCheckbutton:SetScript("OnClick", function ()
+        Mappy:SetCoordinatesAnchor("BOTTOM")
+        self.CoordBottomLeftCheckbutton:SetChecked(false)
+        self.CoordBottomCenterCheckbutton:SetChecked(true)
+        self.CoordBottomRightCheckbutton:SetChecked(false)
+    end)
     MappyCoordBottomCenterCheckbuttonText:SetText("Bottom-center")
 
-    self.CoordBottomRightCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomRightCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.CoordBottomRightCheckbutton = CreateFrame("CheckButton", "MappyCoordBottomRightCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
     self.CoordBottomRightCheckbutton:SetPoint("TOPLEFT", self.CoordBottomCenterCheckbutton, "TOPLEFT", 120, 0)
-    self.CoordBottomRightCheckbutton:SetScript("OnClick", function (button) Mappy:SetCoordinatesAnchor("BOTTOMRIGHT") self:OnShow() end)
+    self.CoordBottomRightCheckbutton:SetScript("OnClick", function ()
+        Mappy:SetCoordinatesAnchor("BOTTOMRIGHT")
+        self.CoordBottomLeftCheckbutton:SetChecked(false)
+        self.CoordBottomCenterCheckbutton:SetChecked(false)
+        self.CoordBottomRightCheckbutton:SetChecked(true)
+    end)
     MappyCoordBottomRightCheckbuttonText:SetText("Bottom-right")
 
     -- Size slider
 
-    self.CoordSizeSlider = CreateFrame("Slider", "MappyCoordSizeSlider", self, "OptionsSliderTemplate")
+    self.CoordSizeSlider = CreateFrame("Slider", "MappyCoordSizeSlider", c, "OptionsSliderTemplate")
     self.CoordSizeSlider:SetWidth(200)
     self.CoordSizeSlider:SetPoint("TOPLEFT", self.HideCoordinatesCheckbutton, "BOTTOMLEFT", 10, -50)
     -- stepping
@@ -2981,6 +3149,7 @@ function Mappy._OptionsPanel:OnShow()
     end
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 function Mappy._OptionsPanel:OnHide()
@@ -3013,30 +3182,32 @@ function Mappy._AppearancePanel:Construct(pParent)
     --------------------------------
     -- title header
     --------------------------------
-    self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 20, -20)
+	local c = CreateOptionsScrollFrame(self)
+
+    self.Title = c:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    self.Title:SetPoint("TOPLEFT", c, "TOPLEFT", 20, -20)
     self.Title:SetText("Appearance")
 
-    self.Desc = self:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
+    self.Desc = c:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
     self.Desc:SetPoint("TOPLEFT", self.Title, 1, -30)
     self.Desc:SetText("Size and transparency settings.")
 
     --------------------------------
     -- size alpha header
     --------------------------------
-    self.SizeLine = self:CreateLine()
-    self.SizeLine:SetStartPoint("TOPLEFT", self, 10, -100)
-    self.SizeLine:SetEndPoint("TOPRIGHT", self, -20, -100)
+    self.SizeLine = c:CreateLine()
+    self.SizeLine:SetStartPoint("TOPLEFT", c, 10, -100)
+    self.SizeLine:SetEndPoint("TOPRIGHT", c, -20, -100)
     self.SizeLine:SetColorTexture(1,1,1,0.25)
     self.SizeLine:SetThickness(2)
 
-    self.SizeTitle = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.SizeTitle = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.SizeTitle:SetPoint("TOPLEFT", self.SizeLine, 5, 13)
     self.SizeTitle:SetText("Size and alpha")
 
 	-- Size slider
 
-	self.SizeSlider = CreateFrame("Slider", "MappySizeSlider", self, "OptionsSliderTemplate")
+	self.SizeSlider = CreateFrame("Slider", "MappySizeSlider", c, "OptionsSliderTemplate")
 	self.SizeSlider:SetWidth(380)
 	self.SizeSlider:SetPoint("TOPLEFT", self.SizeLine, "BOTTOMLEFT", 20, -30)
 	MappySizeSliderLow:SetText("Small")
@@ -3057,7 +3228,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 
 	-- Alpha slider
 
-	self.AlphaSlider = CreateFrame("Slider", "MappyAlphaSlider", self, "OptionsSliderTemplate")
+	self.AlphaSlider = CreateFrame("Slider", "MappyAlphaSlider", c, "OptionsSliderTemplate")
 	self.AlphaSlider:SetWidth(180)
 	self.AlphaSlider:SetPoint("TOPLEFT", self.SizeSlider, "BOTTOMLEFT", 0, -35)
 	MappyAlphaSliderLow:SetText("0%")
@@ -3078,7 +3249,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 
 	-- Combat alpha slider
 
-	self.CombatAlphaSlider = CreateFrame("Slider", "MappyCombatAlphaSlider", self, "OptionsSliderTemplate")
+	self.CombatAlphaSlider = CreateFrame("Slider", "MappyCombatAlphaSlider", c, "OptionsSliderTemplate")
 	self.CombatAlphaSlider:SetWidth(180)
 	self.CombatAlphaSlider:SetPoint("TOPLEFT", self.AlphaSlider, "TOPRIGHT", 20, 0)
 	MappyCombatAlphaSliderLow:SetText("0%")
@@ -3099,7 +3270,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 
 	-- Movement alpha slider
 
-	self.MovingAlphaSlider = CreateFrame("Slider", "MappyMovingAlphaSlider", self, "OptionsSliderTemplate")
+	self.MovingAlphaSlider = CreateFrame("Slider", "MappyMovingAlphaSlider", c, "OptionsSliderTemplate")
 	self.MovingAlphaSlider:SetWidth(180)
 	self.MovingAlphaSlider:SetPoint("TOPLEFT", self.CombatAlphaSlider, "TOPRIGHT", 20, 0)
 	MappyMovingAlphaSliderLow:SetText("0%")
@@ -3121,33 +3292,33 @@ function Mappy._AppearancePanel:Construct(pParent)
     --------------------------------
     -- options header
     --------------------------------
-    self.OptionsLine = self:CreateLine()
-    self.OptionsLine:SetStartPoint("TOPLEFT", self, 10, -250)
-    self.OptionsLine:SetEndPoint("TOPRIGHT", self, -20, -250)
+    self.OptionsLine = c:CreateLine()
+    self.OptionsLine:SetStartPoint("TOPLEFT", c, 10, -250)
+    self.OptionsLine:SetEndPoint("TOPRIGHT", c, -20, -250)
     self.OptionsLine:SetColorTexture(1,1,1,0.25)
     self.OptionsLine:SetThickness(2)
 
-    self.OptionsHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.OptionsHeader = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.OptionsHeader:SetPoint("TOPLEFT", self.OptionsLine, 5, 13)
     self.OptionsHeader:SetText("Options")
 
 	-- Mouseover alpha toggle
 
-	self.HoverOpaqueCheckbutton = CreateFrame("CheckButton", "MappyHoverOpaqueCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HoverOpaqueCheckbutton = CreateFrame("CheckButton", "MappyHoverOpaqueCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.HoverOpaqueCheckbutton:SetPoint("TOPLEFT", self.OptionsLine, "BOTTOMLEFT", 10, -15)
 	self.HoverOpaqueCheckbutton:SetScript("OnClick", function (self) Mappy:SetMinimapHoverOpaque(self:GetChecked()) end)
 	MappyHoverOpaqueCheckbuttonText:SetText("100% alpha on mouseover")
 
 	-- Alpha ignore
 
-	self.FadeButtonsCheckbutton = CreateFrame("CheckButton", "MappyFadeButtonsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.FadeButtonsCheckbutton = CreateFrame("CheckButton", "MappyFadeButtonsCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.FadeButtonsCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 0, -25)
 	self.FadeButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeButtons(not self:GetChecked()) end)
 	MappyFadeButtonsCheckbuttonText:SetText("Buttons ignore minimap alpha sliders")
 
 	-- Buttons on mouseover
 
-	self.AutoHideButtonsCheckbutton = CreateFrame("CheckButton", "MappyAutoHideButtonsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.AutoHideButtonsCheckbutton = CreateFrame("CheckButton", "MappyAutoHideButtonsCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.AutoHideButtonsCheckbutton:SetPoint("TOPLEFT", self.FadeButtonsCheckbutton, "TOPLEFT", 0, -25)
 	self.AutoHideButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoHideButtons(self:GetChecked()) end)
 	MappyAutoHideButtonsCheckbuttonText:SetText("Show buttons ONLY on mouseover")
@@ -3155,7 +3326,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 	-- Group Finder eye always visible (Forever client)
 
 	if Mappy.IsForeverClient then
-		self.AlwaysShowGroupFinderCheckbutton = CreateFrame("CheckButton", "MappyAlwaysShowGroupFinderCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.AlwaysShowGroupFinderCheckbutton = CreateFrame("CheckButton", "MappyAlwaysShowGroupFinderCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 		self.AlwaysShowGroupFinderCheckbutton:SetPoint("TOPLEFT", self.AutoHideButtonsCheckbutton, "TOPLEFT", 30, -25)
 		self.AlwaysShowGroupFinderCheckbutton:SetScript("OnClick", function (self) Mappy:SetAlwaysShowGroupFinder(self:GetChecked()) end)
 		MappyAlwaysShowGroupFinderCheckbuttonText:SetText("Except the Group Finder eye")
@@ -3163,7 +3334,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 
 	-- Quest ring toggle
 
-	self.HideQuestRingCheckbutton = CreateFrame("CheckButton", "MappyHideQuestRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideQuestRingCheckbutton = CreateFrame("CheckButton", "MappyHideQuestRingCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.HideQuestRingCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
 	self.HideQuestRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideQuestRing(self:GetChecked()) end)
 	MappyHideQuestRingCheckbuttonText:SetText("Hide quest area border")
@@ -3172,7 +3343,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 	-- Tentatively hidden on Forever since what would even use that?
 
 	if not Mappy.IsForeverClient then
-		self.HideTaskRingCheckbutton = CreateFrame("CheckButton", "MappyHideTaskRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.HideTaskRingCheckbutton = CreateFrame("CheckButton", "MappyHideTaskRingCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 		self.HideTaskRingCheckbutton:SetPoint("TOPLEFT", self.HideQuestRingCheckbutton, "TOPLEFT", 0, -25)
 		self.HideTaskRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTaskRing(self:GetChecked()) end)
 		MappyHideTaskRingCheckbuttonText:SetText("Hide world quest area border")
@@ -3181,11 +3352,17 @@ function Mappy._AppearancePanel:Construct(pParent)
 	-- Archaeology ring toggle (Retail client)
 
 	if not Mappy.IsForeverClient then
-		self.HideArchRingCheckbutton = CreateFrame("CheckButton", "MappyHideArchRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.HideArchRingCheckbutton = CreateFrame("CheckButton", "MappyHideArchRingCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 		self.HideArchRingCheckbutton:SetPoint("TOPLEFT", self.HideTaskRingCheckbutton, "TOPLEFT", 0, -25)
 		self.HideArchRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideArchRing(self:GetChecked()) end)
 		MappyHideArchRingCheckbuttonText:SetText("Hide archaeology area border")
 	end
+
+	-- Texture smoothing does not affect Blizzard's engine-rendered minimap blips.
+	self.IconSmoothingCheckbutton = CreateFrame("CheckButton", "MappyIconSmoothingCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
+	self.IconSmoothingCheckbutton:SetPoint("TOPLEFT", self.AutoHideButtonsCheckbutton, "TOPLEFT", 0, -60)
+	self.IconSmoothingCheckbutton:SetScript("OnClick", function (self) Mappy:SetIconSmoothing(self:GetChecked()) end)
+	MappyIconSmoothingCheckbuttonText:SetText("Smooth minimap texture icons (not gathering blips)")
 
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
@@ -3201,6 +3378,7 @@ function Mappy._AppearancePanel:OnShow()
 	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
 	self.AutoHideButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.AutoHideButtons)
+	self.IconSmoothingCheckbutton:SetChecked(Mappy.CurrentProfile.IconSmoothing == true)
 	if self.AlwaysShowGroupFinderCheckbutton then
 		self.AlwaysShowGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowGroupFinder)
 	end
@@ -3213,6 +3391,7 @@ function Mappy._AppearancePanel:OnShow()
 	end
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 function Mappy._AppearancePanel:OnHide()
@@ -3245,44 +3424,46 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
     --------------------------------
     -- title header
     --------------------------------
-    self.Title = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    self.Title:SetPoint("TOPLEFT", self, "TOPLEFT", 20, -20)
+	local c = CreateOptionsScrollFrame(self)
+
+    self.Title = c:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    self.Title:SetPoint("TOPLEFT", c, "TOPLEFT", 20, -20)
     self.Title:SetText("Buttons")
 
-    self.Desc = self:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
+    self.Desc = c:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
     self.Desc:SetPoint("TOPLEFT", self.Title, 1, -30)
     self.Desc:SetText("Minimap button settings.")
 
     --------------------------------
     -- hide header
     --------------------------------
-    self.HideLine = self:CreateLine()
-    self.HideLine:SetStartPoint("TOPLEFT", self, 10, -100)
-    self.HideLine:SetEndPoint("TOPRIGHT", self, -20, -100)
+    self.HideLine = c:CreateLine()
+    self.HideLine:SetStartPoint("TOPLEFT", c, 10, -100)
+    self.HideLine:SetEndPoint("TOPRIGHT", c, -20, -100)
     self.HideLine:SetColorTexture(1,1,1,0.25)
     self.HideLine:SetThickness(2)
 
-    self.HideTitle = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.HideTitle = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.HideTitle:SetPoint("TOPLEFT", self.HideLine, 5, 13)
     self.HideTitle:SetText("Hide")
 
 	-- Hide zone name
 
-	self.HideZoneNameCheckbutton = CreateFrame("CheckButton", "MappyHideZoneNameCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideZoneNameCheckbutton = CreateFrame("CheckButton", "MappyHideZoneNameCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.HideZoneNameCheckbutton:SetPoint("TOPLEFT", self.HideLine, "BOTTOMLEFT", 10, -15)
 	self.HideZoneNameCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideZoneName(self:GetChecked()) end)
 	MappyHideZoneNameCheckbuttonText:SetText("Hide zone name")
 
 	-- Hide background
 
-	self.HideBorderCheckbutton = CreateFrame("CheckButton", "MappyHideBorderCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideBorderCheckbutton = CreateFrame("CheckButton", "MappyHideBorderCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.HideBorderCheckbutton:SetPoint("TOPLEFT", self.HideZoneNameCheckbutton, "TOPLEFT", 0, -25)
 	self.HideBorderCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideBorder(self:GetChecked()) end)
 	MappyHideBorderCheckbuttonText:SetText("Hide border")
 
 	-- Hide Time Manager Clock
 
-	self.HideTimeManagerClockCheckbutton = CreateFrame("CheckButton", "MappyHideTimeManagerClockCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideTimeManagerClockCheckbutton = CreateFrame("CheckButton", "MappyHideTimeManagerClockCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.HideTimeManagerClockCheckbutton:SetPoint("TOPLEFT", self.HideBorderCheckbutton, "TOPLEFT", 0, -25)
 	self.HideTimeManagerClockCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeManagerClock(self:GetChecked()) end)
 	MappyHideTimeManagerClockCheckbuttonText:SetText("Hide clock")
@@ -3290,7 +3471,7 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	-- Hide day/night icon (Forever client)
 
 	if MinimapCluster.DielFrame then
-		self.HideDielCheckbutton = CreateFrame("CheckButton", "MappyHideDielCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.HideDielCheckbutton = CreateFrame("CheckButton", "MappyHideDielCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 		self.HideDielCheckbutton:SetPoint("TOPLEFT", self.HideTimeManagerClockCheckbutton, "TOPLEFT", 0, -25)
 		self.HideDielCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideDiel(self:GetChecked()) end)
 		MappyHideDielCheckbuttonText:SetText("Hide day/night icon")
@@ -3298,21 +3479,21 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 
 	-- Hide calendar
 
-	self.HideTimeOfDayCheckbutton = CreateFrame("CheckButton", "MappyHideTimeOfDayCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideTimeOfDayCheckbutton = CreateFrame("CheckButton", "MappyHideTimeOfDayCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.HideTimeOfDayCheckbutton:SetPoint("TOPLEFT", self.HideZoneNameCheckbutton, "TOPLEFT", 340, 0)
 	self.HideTimeOfDayCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeOfDay(self:GetChecked()) end)
 	MappyHideTimeOfDayCheckbuttonText:SetText("Hide calendar button")
 
 	-- Hide Tracking button
 
-	self.HideMiniMapTrackingCheckbutton = CreateFrame("CheckButton", "MappyHideMiniMapTrackingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.HideMiniMapTrackingCheckbutton = CreateFrame("CheckButton", "MappyHideMiniMapTrackingCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.HideMiniMapTrackingCheckbutton:SetPoint("TOPLEFT", self.HideTimeOfDayCheckbutton, "TOPLEFT", 0, -25)
 	self.HideMiniMapTrackingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTracking(self:GetChecked()) end)
 	MappyHideMiniMapTrackingCheckbuttonText:SetText("Hide Tracking button")
 
     -- Hide Addon Compartment button
 
-    self.HideAddonCompartmentCheckbutton = CreateFrame("CheckButton", "MappyHideAddonCompartmentCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.HideAddonCompartmentCheckbutton = CreateFrame("CheckButton", "MappyHideAddonCompartmentCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
     self.HideAddonCompartmentCheckbutton:SetPoint("TOPLEFT", self.HideMiniMapTrackingCheckbutton, "TOPLEFT", 0, -25)
     self.HideAddonCompartmentCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideAddonCompartment(self:GetChecked()) end)
     MappyHideAddonCompartmentCheckbuttonText:SetText("Hide Addon Compartment button")
@@ -3320,55 +3501,79 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
     --------------------------------
     -- stacking header
     --------------------------------
-    self.StackingLine = self:CreateLine()
-    self.StackingLine:SetStartPoint("TOPLEFT", self, 10, -250)
-    self.StackingLine:SetEndPoint("TOPRIGHT", self, -20, -250)
+    self.StackingLine = c:CreateLine()
+    self.StackingLine:SetStartPoint("TOPLEFT", c, 10, -250)
+    self.StackingLine:SetEndPoint("TOPRIGHT", c, -20, -250)
     self.StackingLine:SetColorTexture(1,1,1,0.25)
     self.StackingLine:SetThickness(2)
 
-    self.StackingHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.StackingHeader = c:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.StackingHeader:SetPoint("TOPLEFT", self.StackingLine, 5, 13)
     self.StackingHeader:SetText("Arrange buttons")
 
 	-- Addon button stacking
 
-	self.AutoStackCheckbutton = CreateFrame("CheckButton", "MappyAutoStackCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.AutoStackCheckbutton = CreateFrame("CheckButton", "MappyAutoStackCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.AutoStackCheckbutton:SetPoint("TOPLEFT", self.StackingLine, "BOTTOMLEFT", 10, -15)
 	self.AutoStackCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoArrangeButtons(self:GetChecked()) end)
 	MappyAutoStackCheckbuttonText:SetText("Auto-arrange addon buttons")
 	
 	-- Starting corner
 	
-	self.TopLeftCheckbutton = CreateFrame("CheckButton", "MappyTopLeftCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.TopLeftCheckbutton = CreateFrame("CheckButton", "MappyTopLeftCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.TopLeftCheckbutton:SetPoint("TOPLEFT", self.AutoStackCheckbutton, "TOPLEFT", 30, -25)
-	self.TopLeftCheckbutton:SetScript("OnClick", function (button) Mappy:corner("TOPLEFT") self:OnShow() end)
+	self.TopLeftCheckbutton:SetScript("OnClick", function ()
+		Mappy:corner("TOPLEFT")
+		self.TopLeftCheckbutton:SetChecked(true)
+		self.TopRightCheckbutton:SetChecked(false)
+		self.BottomLeftCheckbutton:SetChecked(false)
+		self.BottomRightCheckbutton:SetChecked(false)
+	end)
 	MappyTopLeftCheckbuttonText:SetText("Top-left")
 	
-	self.TopRightCheckbutton = CreateFrame("CheckButton", "MappyTopRightCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.TopRightCheckbutton = CreateFrame("CheckButton", "MappyTopRightCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.TopRightCheckbutton:SetPoint("TOPLEFT", self.TopLeftCheckbutton, "TOPLEFT", 120, 0)
-	self.TopRightCheckbutton:SetScript("OnClick", function (button) Mappy:corner("TOPRIGHT") self:OnShow() end)
+	self.TopRightCheckbutton:SetScript("OnClick", function ()
+		Mappy:corner("TOPRIGHT")
+		self.TopLeftCheckbutton:SetChecked(false)
+		self.TopRightCheckbutton:SetChecked(true)
+		self.BottomLeftCheckbutton:SetChecked(false)
+		self.BottomRightCheckbutton:SetChecked(false)
+	end)
 	MappyTopRightCheckbuttonText:SetText("Top-right")
 	
-	self.BottomLeftCheckbutton = CreateFrame("CheckButton", "MappyBottomLeftCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.BottomLeftCheckbutton = CreateFrame("CheckButton", "MappyBottomLeftCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.BottomLeftCheckbutton:SetPoint("TOPLEFT", self.TopLeftCheckbutton, "TOPLEFT", 0, -25)
-	self.BottomLeftCheckbutton:SetScript("OnClick", function (button) Mappy:corner("BOTTOMLEFT") self:OnShow() end)
+	self.BottomLeftCheckbutton:SetScript("OnClick", function ()
+		Mappy:corner("BOTTOMLEFT")
+		self.TopLeftCheckbutton:SetChecked(false)
+		self.TopRightCheckbutton:SetChecked(false)
+		self.BottomLeftCheckbutton:SetChecked(true)
+		self.BottomRightCheckbutton:SetChecked(false)
+	end)
 	MappyBottomLeftCheckbuttonText:SetText("Bottom-left")
 	
-	self.BottomRightCheckbutton = CreateFrame("CheckButton", "MappyBottomRightCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.BottomRightCheckbutton = CreateFrame("CheckButton", "MappyBottomRightCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.BottomRightCheckbutton:SetPoint("TOPLEFT", self.TopRightCheckbutton, "TOPLEFT", 0, -25)
-	self.BottomRightCheckbutton:SetScript("OnClick", function (button) Mappy:corner("BOTTOMRIGHT") self:OnShow() end)
+	self.BottomRightCheckbutton:SetScript("OnClick", function ()
+		Mappy:corner("BOTTOMRIGHT")
+		self.TopLeftCheckbutton:SetChecked(false)
+		self.TopRightCheckbutton:SetChecked(false)
+		self.BottomLeftCheckbutton:SetChecked(false)
+		self.BottomRightCheckbutton:SetChecked(true)
+	end)
 	MappyBottomRightCheckbuttonText:SetText("Bottom-right")
 	
 	-- Direction
 
-	self.CCWCheckbutton = CreateFrame("CheckButton", "MappyCCWCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.CCWCheckbutton = CreateFrame("CheckButton", "MappyCCWCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.CCWCheckbutton:SetPoint("TOPLEFT", self.BottomLeftCheckbutton, "TOPLEFT", 0, -25)
 	self.CCWCheckbutton:SetScript("OnClick", function (self) Mappy:SetCounterClockwise(self:GetChecked()) end)
 	MappyCCWCheckbuttonText:SetText("Counter-clockwise")
 	
 	-- Stacking parent
 
-	self.StackToScreenCheckbutton = CreateFrame("CheckButton", "MappyStackToScreenCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+	self.StackToScreenCheckbutton = CreateFrame("CheckButton", "MappyStackToScreenCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 	self.StackToScreenCheckbutton:SetPoint("TOPLEFT", self.CCWCheckbutton, "TOPLEFT", 0, -25)
 	self.StackToScreenCheckbutton:SetScript("OnClick", function (self) Mappy:SetStackToScreen(self:GetChecked()) end)
 	MappyStackToScreenCheckbuttonText:SetText("Stack around screen")
@@ -3376,7 +3581,7 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	-- Group Finder eye stacking (Forever client)
 
 	if Mappy.IsForeverClient then
-		self.StackGroupFinderCheckbutton = CreateFrame("CheckButton", "MappyStackGroupFinderCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.StackGroupFinderCheckbutton = CreateFrame("CheckButton", "MappyStackGroupFinderCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
 		self.StackGroupFinderCheckbutton:SetPoint("TOPLEFT", self.AutoStackCheckbutton, "TOPLEFT", 340, 0)
 		self.StackGroupFinderCheckbutton:SetScript("OnClick", function (self) Mappy:SetStackGroupFinder(self:GetChecked()) end)
 		MappyStackGroupFinderCheckbuttonText:SetText("Include the Group Finder eye")
@@ -3409,6 +3614,7 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	end
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 function Mappy._ButtonOptionsPanel:OnHide()
