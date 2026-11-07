@@ -22,6 +22,13 @@ function Addon.DebugLib:Initialize()
 	end
 	
 	self.Initialized = true
+
+	-- A Debug chat tab can be created after the first message.
+	self.EventFrame = CreateFrame("Frame")
+	self.EventFrame:SetScript("OnEvent", function()
+		self:FindDebugFrame()
+	end)
+	self.EventFrame:RegisterEvent("UPDATE_CHAT_WINDOWS")
 	
 	self:FindDebugFrame()
 end
@@ -47,7 +54,8 @@ function Addon.DebugLib:FindDebugFrame()
 				end
 				
 				self.DebugFrame:SetFading(false)
-				self.DebugFrame:SetMaxResize(1200, 1000)
+				local vMinWidth, vMinHeight = self.DebugFrame:GetResizeBounds()
+				self.DebugFrame:SetResizeBounds(vMinWidth, vMinHeight, 1200, 1000)
 			end
 		end
 	end
