@@ -113,6 +113,25 @@ Mappy.CoordInfo = {
     },
 }
 
+Mappy.ZoomButtonPositions = {
+    TOPLEFT = {
+        ZoomIn = { "TOPLEFT", 26, -6 },
+        ZoomOut = { "TOPLEFT", 6, -28 },
+    },
+    TOPRIGHT = {
+        ZoomIn = { "TOPRIGHT", -26, -6 },
+        ZoomOut = { "TOPRIGHT", -6, -28 },
+    },
+    BOTTOMLEFT = {
+        ZoomIn = { "BOTTOMLEFT", 26, 6 },
+        ZoomOut = { "BOTTOMLEFT", 6, 28 },
+    },
+    BOTTOMRIGHT = {
+        ZoomIn = { "BOTTOMRIGHT", -26, 6 },
+        ZoomOut = { "BOTTOMRIGHT", -6, 28 },
+    },
+}
+
 Mappy.StartingCorner = "TOPRIGHT"
 
 Mappy.CornerInfo = {
@@ -335,6 +354,7 @@ function Mappy:InitializeSettings()
                 UseAddonPosition = false,
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
+                ZoomButtonsCorner = "TOPLEFT",
                 MinimapHoverOpaque = false,
                 FadeButtons = true,
                 AutoHideButtons = true,
@@ -371,6 +391,7 @@ function Mappy:InitializeSettings()
                 UseAddonPosition = false,
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
+                ZoomButtonsCorner = "TOPLEFT",
                 MinimapHoverOpaque = false,
                 FadeButtons = true,
                 AutoHideButtons = true,
@@ -959,9 +980,8 @@ function Mappy:InitializeSquareShape()
     -- Use retail's zone text size (to override Forever's smaller font)
     MinimapZoneText:SetFont(GameFontNormal:GetFont())
 
-    -- Move zoom buttons to the corner and raise strata above the backdrop
-    Minimap.ZoomIn:SetPoint("TOPLEFT", 22, -2)
-    Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
+    -- Raise zoom buttons above the backdrop; ConfigureMinimap restores their corner
+    self:ConfigureZoomButtons()
     Minimap.ZoomIn:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
     Minimap.ZoomOut:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
 
@@ -1473,6 +1493,29 @@ function Mappy:SetMinimapSize(pSize)
 	self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 end
 
+function Mappy:SetZoomButtonsCorner(pCorner)
+    local vCorner = pCorner:upper()
+    if self.ZoomButtonPositions[vCorner] then
+        self.CurrentProfile.ZoomButtonsCorner = vCorner
+        self:LoadProfile(self.CurrentProfile)
+    else
+        self:ErrorMessage("ZoomButtonsCorner must be TOPLEFT, TOPRIGHT, BOTTOMLEFT, or BOTTOMRIGHT")
+    end
+end
+
+function Mappy:ConfigureZoomButtons()
+    local vPositions = self.ZoomButtonPositions[self.CurrentProfile.ZoomButtonsCorner or "TOPLEFT"]
+        or self.ZoomButtonPositions.TOPLEFT
+    if Minimap.ZoomIn then
+        Minimap.ZoomIn:ClearAllPoints()
+        Minimap.ZoomIn:SetPoint(unpack(vPositions.ZoomIn))
+    end
+    if Minimap.ZoomOut then
+        Minimap.ZoomOut:ClearAllPoints()
+        Minimap.ZoomOut:SetPoint(unpack(vPositions.ZoomOut))
+    end
+end
+
 function Mappy:OverrideEditModeSize()
     -- Override Edit Mode size
     MinimapCluster.MinimapContainer:SetScale(1)
@@ -1513,6 +1556,7 @@ function Mappy:ConfigureMinimap()
     end
 
     self:OverrideEditModeSize()
+    self:ConfigureZoomButtons()
 
     -- Recalculate the Group Finder's default position at Mappy's scale (Forever client)
     EventRegistry:TriggerEvent("Minimap.OnScaleUpdated", 1)
@@ -2936,6 +2980,32 @@ function Mappy._OptionsPanel:Construct(pParent)
         MappyCoordSizeSliderText:SetText("Text size - " .. vSize)
     end)
 
+    -- Zoom buttons corner
+    local vZoomParent = self.ScrollChild or self
+    self.ZoomButtonsHeader = vZoomParent:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.ZoomButtonsHeader:SetPoint("TOPLEFT", self.CoordSizeSlider, "BOTTOMLEFT", -10, -35)
+    self.ZoomButtonsHeader:SetText("Zoom buttons position")
+
+    self.ZoomTLCheckbutton = CreateFrame("CheckButton", "MappyZoomTLCheckbutton", vZoomParent, "InterfaceOptionsCheckButtonTemplate")
+    self.ZoomTLCheckbutton:SetPoint("TOPLEFT", self.ZoomButtonsHeader, "BOTTOMLEFT", 0, -8)
+    self.ZoomTLCheckbutton:SetScript("OnClick", function () Mappy:SetZoomButtonsCorner("TOPLEFT") self:OnShow() end)
+    MappyZoomTLCheckbuttonText:SetText("Top-left")
+
+    self.ZoomTRCheckbutton = CreateFrame("CheckButton", "MappyZoomTRCheckbutton", vZoomParent, "InterfaceOptionsCheckButtonTemplate")
+    self.ZoomTRCheckbutton:SetPoint("TOPLEFT", self.ZoomTLCheckbutton, "TOPLEFT", 120, 0)
+    self.ZoomTRCheckbutton:SetScript("OnClick", function () Mappy:SetZoomButtonsCorner("TOPRIGHT") self:OnShow() end)
+    MappyZoomTRCheckbuttonText:SetText("Top-right")
+
+    self.ZoomBLCheckbutton = CreateFrame("CheckButton", "MappyZoomBLCheckbutton", vZoomParent, "InterfaceOptionsCheckButtonTemplate")
+    self.ZoomBLCheckbutton:SetPoint("TOPLEFT", self.ZoomTRCheckbutton, "TOPLEFT", 120, 0)
+    self.ZoomBLCheckbutton:SetScript("OnClick", function () Mappy:SetZoomButtonsCorner("BOTTOMLEFT") self:OnShow() end)
+    MappyZoomBLCheckbuttonText:SetText("Bottom-left")
+
+    self.ZoomBRCheckbutton = CreateFrame("CheckButton", "MappyZoomBRCheckbutton", vZoomParent, "InterfaceOptionsCheckButtonTemplate")
+    self.ZoomBRCheckbutton:SetPoint("TOPLEFT", self.ZoomBLCheckbutton, "TOPLEFT", 120, 0)
+    self.ZoomBRCheckbutton:SetScript("OnClick", function () Mappy:SetZoomButtonsCorner("BOTTOMRIGHT") self:OnShow() end)
+    MappyZoomBRCheckbuttonText:SetText("Bottom-right")
+
 
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
@@ -2971,6 +3041,10 @@ function Mappy._OptionsPanel:OnShow()
     self.CoordBottomCenterCheckbutton:SetChecked(Mappy.CurrentProfile.CoordAnchor == "BOTTOM")
     self.CoordBottomRightCheckbutton:SetChecked(Mappy.CurrentProfile.CoordAnchor == "BOTTOMRIGHT")
     self.CoordSizeSlider:SetValue(Mappy.CurrentProfile.CoordSize or 1)
+    self.ZoomTLCheckbutton:SetChecked(not Mappy.CurrentProfile.ZoomButtonsCorner or Mappy.CurrentProfile.ZoomButtonsCorner == "TOPLEFT")
+    self.ZoomTRCheckbutton:SetChecked(Mappy.CurrentProfile.ZoomButtonsCorner == "TOPRIGHT")
+    self.ZoomBLCheckbutton:SetChecked(Mappy.CurrentProfile.ZoomButtonsCorner == "BOTTOMLEFT")
+    self.ZoomBRCheckbutton:SetChecked(Mappy.CurrentProfile.ZoomButtonsCorner == "BOTTOMRIGHT")
 
     self.LockPositionCheckbutton:SetEnabled(Mappy.CurrentProfile.UseAddonPosition)
 
