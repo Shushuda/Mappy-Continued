@@ -1,8 +1,8 @@
-## Interface: 120105
+## Interface: 120105, 16001
 ## Notes: Minimap enhancements
 ## Title: Mappy Continued
-## Author: John Stephen, LynchburgJack, Shushuda, wealdly, Little-Bunny-FuFu
-## Version: 5.0.0
+## Author: John Stephen, LynchburgJack, Shushuda, wealdly, Little-Bunny-FuFu, Zuz666
+## Version: 5.1.0
 ## SavedVariables: gMappy_Settings
 ## OptionalDeps: GatherMate, GatherMate2, MBB, FarmHud, Immersion
 
