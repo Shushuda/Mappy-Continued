@@ -2521,6 +2521,10 @@ function Mappy:StopMovingMinimap()
 end
 
 function Mappy:StartGatherFlash()
+	if not self.enableBlips then
+		return
+	end
+
 	self.EnableFlashingNodes = true
 
 	if not self.ObjectIconsNormalCache then
