@@ -2930,7 +2930,6 @@ local function CreateOptionsScrollFrame(pPanel)
 	pPanel.ScrollChild:SetSize(1, 1)
 	pPanel.ScrollFrame:SetScrollChild(pPanel.ScrollChild)
 	pPanel.ScrollFrame:SetScript("OnSizeChanged", function() UpdateOptionsScrollHeight(pPanel) end)
-	pPanel:HookScript("OnShow", function() UpdateOptionsScrollHeight(pPanel) end)
 	return pPanel.ScrollChild
 end
 
@@ -3150,6 +3149,7 @@ function Mappy._OptionsPanel:OnShow()
     end
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 function Mappy._OptionsPanel:OnHide()
@@ -3391,6 +3391,7 @@ function Mappy._AppearancePanel:OnShow()
 	end
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 function Mappy._AppearancePanel:OnHide()
@@ -3613,6 +3614,7 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	end
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 function Mappy._ButtonOptionsPanel:OnHide()

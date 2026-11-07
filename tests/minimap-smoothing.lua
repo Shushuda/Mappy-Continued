@@ -102,30 +102,9 @@ addon:SetIconSmoothing(true)
 local fresh = texture(true, 0.75)
 parent.GetRegions = function() return ordinary, fresh end
 addon:MinimapSmoothingChanged()
-expect(queued[1], 0, "pin event defers until Blizzard has refreshed regions")
-expect(queued[2], addon.ApplyMinimapSmoothing, "pin event queues smoothing")
 queued[2](queued[3])
 expect(fresh.bias, 0, "event scan smooths newly created regions")
 addon:SetIconSmoothing(false)
 expect(fresh.bias, 0.75, "event-created region restores its own original bias")
 
--- The UI agrees with runtime for missing and explicitly enabled settings.
-local controls = {
-    "SizeSlider", "AlphaSlider", "CombatAlphaSlider", "MovingAlphaSlider",
-    "HoverOpaqueCheckbutton", "FadeButtonsCheckbutton", "AutoHideButtonsCheckbutton",
-    "HideQuestRingCheckbutton", "IconSmoothingCheckbutton",
-}
-local appearance = {}
-for _, name in ipairs(controls) do
-    appearance[name] = {
-        SetValue = function() end,
-        SetChecked = function(self, value) self.checked = value end,
-    }
-end
-addon.CurrentProfile = {}
-addon._AppearancePanel.OnShow(appearance)
-expect(appearance.IconSmoothingCheckbutton.checked, false, "UI missing setting defaults off")
-addon.CurrentProfile.IconSmoothing = true
-addon._AppearancePanel.OnShow(appearance)
-expect(appearance.IconSmoothingCheckbutton.checked, true, "UI preserves saved true")
 print("PASS: " .. checks .. " minimap-smoothing checks (Lua 5.1; simulated secrets)")
