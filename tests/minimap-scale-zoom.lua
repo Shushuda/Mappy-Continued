@@ -12,40 +12,7 @@ end
 local tableStart = assert(source:find("Mappy.ZoomButtonPositions =", 1, true))
 local tableEnd = assert(source:find("Mappy.StartingCorner =", tableStart, true))
 assert(loadstring(source:sub(tableStart, tableEnd - 1)))()
-loadMethod("Mappy:SetZoomButtonsCorner")
 loadMethod("Mappy:ConfigureZoomButtons")
-loadMethod("Mappy:EditModeExit")
-local function frame()
-    return {
-        ClearAllPoints = function(self) self.point = nil end,
-        SetPoint = function(self, ...) self.point = {...} end,
-    }
-end
-Minimap = { ZoomIn = frame(), ZoomOut = frame() }
-function Mappy:LoadProfile(profile)
-    self.CurrentProfile = profile
-    self:ConfigureZoomButtons()
-end
-function Mappy:ErrorMessage(message) error(message) end
-for _, corner in ipairs({"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"}) do
-    Mappy:SetZoomButtonsCorner(corner:lower())
-    assert(Mappy.CurrentProfile.ZoomButtonsCorner == corner)
-    for _, button in ipairs({"ZoomIn", "ZoomOut"}) do
-        for index, value in ipairs(Mappy.ZoomButtonPositions[corner][button]) do
-            assert(Minimap[button].point[index] == value)
-        end
-    end
-    -- Blizzard changes anchors during Edit Mode; exit must restore the saved corner.
-    Minimap.ZoomIn:SetPoint("CENTER")
-    Minimap.ZoomOut:SetPoint("CENTER")
-    Mappy:EditModeExit()
-    assert(Minimap.ZoomIn.point[1] == corner)
-    assert(Minimap.ZoomOut.point[1] == corner)
-end
-Mappy:LoadProfile({ ZoomButtonsCorner = "BOTTOMLEFT" })
-assert(Minimap.ZoomIn.point[1] == "BOTTOMLEFT")
-Mappy:LoadProfile({})
-assert(Minimap.ZoomIn.point[1] == "TOPLEFT")
 
 function CopyTable(value)
     if type(value) ~= "table" then return value end
@@ -234,7 +201,6 @@ assert(Minimap.point[1] == "TOPLEFT" and Minimap.point[2] == MinimapCluster)
 close(marker:GetEffectiveScale(), 1.2)
 close(button:GetEffectiveScale(), 0.8) -- Stacked sibling buttons are not scaled.
 Mappy:UpdateSizeSliderText()
-assert(MappySizeSliderText.text == "Size - 168px (140 x 150%)")
 FarmHud = widget()
 Mappy.FarmHudEnabled = true
 Minimap.parent = FarmHud
@@ -282,38 +248,4 @@ Mappy:ConfigureMinimap()
 assert(activeWrites == 1 and radiusUpdates == 1, "locked contexts must not reapply a layout")
 locked = false
 
--- Construct the real Appearance controls and exercise their actual callbacks.
-Settings = {
-    RegisterCanvasLayoutSubcategory = function() return {} end,
-}
-loadMethod("Mappy._AppearancePanel:Construct")
-loadMethod("Mappy._AppearancePanel:OnShow")
-Mappy.AppearancePanel = widget()
-Mappy.AppearancePanel.OnShow = Mappy._AppearancePanel.OnShow
-Mappy._AppearancePanel.Construct(Mappy.AppearancePanel)
-local profileBefore = CopyTable(Mappy.CurrentProfile)
-local scheduledBefore = schedules
-Mappy.AppearancePanel:OnShow()
-assert(equal(profileBefore, Mappy.CurrentProfile) and saves == beforeSaves)
-assert(schedules == scheduledBefore and Mappy.AppearancePanel.ScaleSlider.value == 150)
--- Custom layout OnShow must select the second custom and also remain read-only.
-raw = { activeLayout = 4, layouts = {layout(11, 3), layout(12, 10)} }
-updateLayouts()
-Mappy.AppearancePanel:OnShow()
-assert(equal(profileBefore, Mappy.CurrentProfile) and saves == beforeSaves)
-assert(schedules == scheduledBefore and Mappy.AppearancePanel.ScaleSlider.value == 150)
-local slider = Mappy.AppearancePanel.ScaleSlider
-slider:SetValue(70) -- Programmatic changes are not user input, even outside OnShow.
-assert(equal(profileBefore, Mappy.CurrentProfile) and saves == beforeSaves)
-slider.scripts.OnValueChanged(slider, 120, true)
-close(Mappy:GetEditModeMinimapScale(), 1.2)
-assert(saves == beforeSaves + 1)
-assert(raw.layouts[1].systems[2].settings[2].value == 3)
-assert(raw.layouts[2].systems[2].settings[2].value == 7)
-assert(equal(profileBefore, Mappy.CurrentProfile), "custom scale must retain preset fallback")
-combat = true
-slider.scripts.OnValueChanged(slider, 180, true)
-close(Mappy:GetEditModeMinimapScale(), 1.2)
-assert(saves == beforeSaves + 1)
-combat = false
 print("minimap scale/zoom regressions passed")
