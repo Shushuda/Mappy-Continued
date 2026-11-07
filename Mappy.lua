@@ -582,6 +582,13 @@ function Mappy:FindMinimapButtons()
 end
 
 function Mappy:RegisterMinimapButton(pButton, pAlwaysStack, pIndex)
+	if not pButton or type(pButton.SetPoint) ~= "function"
+	or type(pButton.ClearAllPoints) ~= "function"
+	or type(pButton.GetNumPoints) ~= "function"
+	or type(pButton.GetPoint) ~= "function" then
+		return
+	end
+
 	if self.MinimapButtonsByFrame[pButton] then
 		return
 	end
@@ -1709,6 +1716,10 @@ function Mappy:ShowFrameTree(pFrame, pFrameLabel, pIndentString)
 end
 
 function Mappy:IsAnchoredToFrame(pFrame, pAnchoredTo)
+	if not pFrame or not pFrame.GetNumPoints or not pFrame.GetPoint then
+		return false
+	end
+
 	local	vNumPoints = pFrame:GetNumPoints()
 
 	for vPointIndex = 1, vNumPoints do
@@ -1718,7 +1729,7 @@ function Mappy:IsAnchoredToFrame(pFrame, pAnchoredTo)
 			return false
 		end
 
-		if vRelativeTo == pAnchoredTo then
+		if not issecretvalue(vRelativeTo) and vRelativeTo == pAnchoredTo then
 			return true
 		end
 	end
@@ -1727,7 +1738,9 @@ function Mappy:IsAnchoredToFrame(pFrame, pAnchoredTo)
 end
 
 function Mappy:IsButtonFrame(pFrame, pAnchoredTo)
-	if pFrame:IsForbidden() then
+	if not pFrame or not pFrame.IsForbidden or pFrame:IsForbidden()
+	or not pFrame.GetName or not pFrame.GetWidth or not pFrame.GetHeight
+	or not (pFrame.GetObjectType or pFrame.GetFrameType) then
 		return false
 	end
 	local	vFrameName = pFrame:GetName() or "Anonymous"
@@ -1744,7 +1757,8 @@ function Mappy:IsButtonFrame(pFrame, pAnchoredTo)
 	or self.MinimapButtonsByFrame[pFrame]
 	or vFrameType == "Model"
 	or vFrameWidth < 24 or vFrameWidth > 48
-	or math.abs(vFrameHeight - vFrameWidth) > 1e-3 then
+	or math.abs(vFrameHeight - vFrameWidth) > 1e-3
+	or vFrameName:match("^TTMinimapButton%d+$") then -- TomTom self-positioning waypoint pins
 		return false
 	end
 	
@@ -1757,6 +1771,10 @@ function Mappy:IsButtonFrame(pFrame, pAnchoredTo)
 end
 
 function Mappy:FindAddonButtons(pFrame, pAnchoredTo)
+	if not pFrame or not pFrame.GetChildren then
+		return
+	end
+
     for _, vFrame in pairs({pFrame:GetChildren()}) do
         if self:IsButtonFrame(vFrame, pAnchoredTo) then
             self:RegisterMinimapButton(vFrame)
@@ -2384,7 +2402,10 @@ Mappy._MinimapButton = {}
 function Mappy._MinimapButton:Mappy_SetStackingEnabled(pEnable)
 	if pEnable then
 		if not self.Mappy_SetPoint then
-			self:Mappy_SaveAnchors()
+			if type(self.SetPoint) ~= "function" or type(self.ClearAllPoints) ~= "function"
+			or not self:Mappy_SaveAnchors() then
+				return
+			end
 			
 			self.Mappy_SetPoint = self.SetPoint
 			self.Mappy_ClearAllPoints = self.ClearAllPoints
@@ -2394,7 +2415,7 @@ function Mappy._MinimapButton:Mappy_SetStackingEnabled(pEnable)
 
 			-- Use HookScript instead of SetScript to avoid tainting
 			-- Blizzard button script chains (hook is permanent, controlled by flag)
-			if not self.Mappy_HooksInstalled then
+			if not self.Mappy_HooksInstalled and self.HookScript then
 				self:HookScript("OnHide", Mappy.Button_OnHide)
 				self:HookScript("OnShow", Mappy.Button_OnShow)
 				self.Mappy_HooksInstalled = true
@@ -2403,31 +2424,41 @@ function Mappy._MinimapButton:Mappy_SetStackingEnabled(pEnable)
 		self.Mappy_StackingActive = true
 	else
 		if self.Mappy_SetPoint and not self.Mappy_AlwaysStack then
-			self.SetPoint = self.Mappy_SetPoint
-			self.ClearAllPoints = self.Mappy_ClearAllPoints
+			-- Restore each method only while we still own it.
+			if self.SetPoint == self.Mappy_SaveSetPoint then
+				self.SetPoint = self.Mappy_SetPoint
+			end
+			if self.ClearAllPoints == self.Mappy_SaveClearAllPoints then
+				self.ClearAllPoints = self.Mappy_ClearAllPoints
+			end
+			self:Mappy_RestoreAnchors()
 			
 			self.Mappy_SetPoint = nil
 			self.Mappy_ClearAllPoints = nil
 			-- HookScript hooks are permanent, so just disable via flag
 			self.Mappy_StackingActive = false
 			
-			self:Mappy_RestoreAnchors()
 		end
 	end
 end
 
 function Mappy._MinimapButton:Mappy_SaveAnchors()
 	if self.Mappy_SavedAnchors then
-		return
+		return true
 	end
-	
-	self.Mappy_SavedAnchors = {}
-	
+
+	local vAnchors = {}
 	for vIndex = 1, self:GetNumPoints() do
-		local vPoint, vRelativeTo, vRelativePoint, vOffsetX, vOffsetY = self:GetPoint(vIndex)
-		
-		self.Mappy_SavedAnchors[vPoint] = {RelativeTo = vRelativeTo, RelativePoint = vRelativePoint, OffsetX = vOffsetX, OffsetY = vOffsetY}
+		local vOK, vPoint, vRelativeTo, vRelativePoint, vOffsetX, vOffsetY = pcall(self.GetPoint, self, vIndex)
+		if not vOK or issecretvalue(vPoint) or issecretvalue(vRelativeTo)
+		or issecretvalue(vRelativePoint) or issecretvalue(vOffsetX) or issecretvalue(vOffsetY)
+		or not vPoint then
+			return false
+		end
+		vAnchors[vPoint] = {RelativeTo = vRelativeTo, RelativePoint = vRelativePoint, OffsetX = vOffsetX, OffsetY = vOffsetY}
 	end
+	self.Mappy_SavedAnchors = vAnchors
+	return true
 end
 
 function Mappy._MinimapButton:Mappy_RestoreAnchors()
@@ -2435,17 +2466,20 @@ function Mappy._MinimapButton:Mappy_RestoreAnchors()
 		return
 	end
 	
-	self:ClearAllPoints()
-
-	for vPoint, vAnchorInfo in pairs(self.Mappy_SavedAnchors) do
-		self:SetPoint(vPoint, vAnchorInfo.RelativeTo, vAnchorInfo.RelativePoint, vAnchorInfo.OffsetX, vAnchorInfo.OffsetY)
-	end
-	
+	-- Bypass interceptors and third-party wrappers while replaying tracked anchors.
+	-- Detach the table before clearing so a wrapper cannot erase the saved state.
+	local vAnchors = self.Mappy_SavedAnchors
 	self.Mappy_SavedAnchors = nil
+	local vClearAllPoints = self.Mappy_ClearAllPoints or self.ClearAllPoints
+	local vSetPoint = self.Mappy_SetPoint or self.SetPoint
+	vClearAllPoints(self)
+	for vPoint, vAnchorInfo in pairs(vAnchors) do
+		vSetPoint(self, vPoint, vAnchorInfo.RelativeTo, vAnchorInfo.RelativePoint, vAnchorInfo.OffsetX, vAnchorInfo.OffsetY)
+	end
 end
 
 function Mappy._MinimapButton:Mappy_SaveSetPoint(pPoint, pRelativeTo, pRelativePoint, pOffsetX, pOffsetY)
-	if not self.Mappy_SavedAnchors then
+	if not self.Mappy_SavedAnchors or issecretvalue(pPoint) or not pPoint then
 		return
 	end
 	
