@@ -3295,7 +3295,6 @@ local function CreateOptionsScrollFrame(pPanel)
 	pPanel.ScrollChild:SetSize(1, 1)
 	pPanel.ScrollFrame:SetScrollChild(pPanel.ScrollChild)
 	pPanel.ScrollFrame:SetScript("OnSizeChanged", function() UpdateOptionsScrollHeight(pPanel) end)
-	pPanel:HookScript("OnShow", function() UpdateOptionsScrollHeight(pPanel) end)
 	return pPanel.ScrollChild
 end
 
@@ -3494,6 +3493,7 @@ function Mappy._OptionsPanel:OnShow()
     self:UpdateDependentOptions()
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 -- Grey out options that depend on other options or the client
@@ -3827,6 +3827,7 @@ function Mappy._AppearancePanel:OnShow()
     self.DimIndoorMapCheckbutton:SetChecked(Mappy.CurrentProfile.DimIndoorMap)
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 -- Grey out options that depend on other options
@@ -4072,6 +4073,7 @@ function Mappy._ButtonOptionsPanel:OnShow()
 	end
 
 	Mappy.DisableUpdates = false
+	UpdateOptionsScrollHeight(self)
 end
 
 function Mappy._ButtonOptionsPanel:OnHide()
