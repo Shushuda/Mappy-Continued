@@ -85,6 +85,39 @@ for _, ownership in ipairs({"neither", "set", "clear", "both"}) do
     expect(frame.Mappy_StackingActive, false, "permanent hooks disabled")
 end
 
+-- Other addons may retain our interceptors inside their own method wrappers.
+for _, ownership in ipairs({"set", "clear", "both"}) do
+    local frame = button("DelegatingAddon", {{"CENTER", target, "CENTER", 1, 2}})
+    Mappy:RegisterMinimapButton(frame)
+    for cycle = 1, 2 do
+        frame:Mappy_SetStackingEnabled(true)
+        local interceptedSet, interceptedClear = frame.SetPoint, frame.ClearAllPoints
+        if ownership == "set" or ownership == "both" then
+            frame.SetPoint = function(self, ...) return interceptedSet(self, ...) end
+        end
+        if ownership == "clear" or ownership == "both" then
+            frame.ClearAllPoints = function(self, ...) return interceptedClear(self, ...) end
+        end
+        frame:ClearAllPoints()
+        frame:SetPoint("TOP", target, "BOTTOM", 13, 17)
+        -- Stacking uses the saved predecessors, which may themselves be wrappers.
+        frame:Mappy_ClearAllPoints()
+        frame:Mappy_SetPoint("BOTTOM", target, "TOP", 7, 9)
+        expect(frame:GetNumPoints(), 1, "stacking still moves the frame through old delegates")
+        expect(frame.anchors[1][1], "BOTTOM", "old delegates do not intercept the next stacking cycle")
+        frame:Mappy_SetStackingEnabled(false)
+        expect(frame:GetNumPoints(), 1, "delegating wrapper preserves restored anchor count")
+        expect(frame.anchors[1][1], "TOP", "delegating wrapper preserves requested anchor")
+        expect(frame.anchors[1][4], 13, "delegating wrapper preserves requested offset")
+        frame:ClearAllPoints()
+        expect(frame:GetNumPoints(), 0, "delegating ClearAllPoints works after disabling stacking")
+        frame:SetPoint("LEFT", target, "RIGHT", 31, 37)
+        expect(frame:GetNumPoints(), 1, "delegating SetPoint works after disabling stacking")
+        expect(frame.anchors[1][1], "LEFT", "inactive delegate applies the new anchor")
+        expect(frame.anchors[1][4], 31, "inactive delegate applies the new offset")
+    end
+end
+
 local invalid = button("Restricted", {{"CENTER", secretAnchor, "CENTER", 0, 0}})
 Mappy:RegisterMinimapButton(invalid)
 local invalidSet = invalid.SetPoint
