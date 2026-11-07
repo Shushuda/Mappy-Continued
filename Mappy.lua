@@ -263,6 +263,52 @@ local function tableContains(table, key)
     return table[key] ~= nil
 end
 
+-- Own only properties we actually change, without retaining retired minimap pins.
+local SmoothedMinimapTextures = setmetatable({}, {__mode = "k"})
+
+local function IsSmoothingValueReadable(pValue)
+	return not (issecretvalue and issecretvalue(pValue))
+		and (not canaccessvalue or canaccessvalue(pValue))
+end
+
+local function CanSmoothMinimapObject(pObject)
+	if not IsSmoothingValueReadable(pObject) then return false end
+	local vForbidden = pObject:IsForbidden()
+	if not IsSmoothingValueReadable(vForbidden) or vForbidden then return false end
+	if pObject.HasSecretValues then
+		local vSecret = pObject:HasSecretValues()
+		if not IsSmoothingValueReadable(vSecret) or vSecret then return false end
+	end
+	if pObject.IsProtected then
+		local vProtected = pObject:IsProtected()
+		if not IsSmoothingValueReadable(vProtected) then return false end
+		if vProtected then
+			local vCanChange = pObject:CanChangeProtectedState()
+			if not IsSmoothingValueReadable(vCanChange) or not vCanChange then return false end
+		end
+	end
+	return true
+end
+
+local function GetMinimapTextureSnapping(pTexture)
+	if not CanSmoothMinimapObject(pTexture)
+	or not pTexture.IsObjectType or not pTexture.IsSnappingToPixelGrid
+	or not pTexture.GetTexelSnappingBias or not pTexture.SetSnapToPixelGrid
+	or not pTexture.SetTexelSnappingBias then return end
+	local vIsTexture = pTexture:IsObjectType("Texture")
+	if not IsSmoothingValueReadable(vIsTexture) or not vIsTexture then return end
+	if pTexture.GetParent then
+		local vParent = pTexture:GetParent()
+		if not IsSmoothingValueReadable(vParent)
+		or (vParent and not CanSmoothMinimapObject(vParent)) then return end
+	end
+	local vSnap = pTexture:IsSnappingToPixelGrid()
+	local vBias = pTexture:GetTexelSnappingBias()
+	if not IsSmoothingValueReadable(vSnap) or not IsSmoothingValueReadable(vBias)
+	or type(vSnap) ~= "boolean" or type(vBias) ~= "number" then return end
+	return vSnap, vBias
+end
+
 --
 
 function Mappy:AddonLoaded(pEventID, pAddonName)
@@ -343,6 +389,7 @@ function Mappy:InitializeSettings()
                 HideArchRing = false,
                 StackGroupFinder = true,
                 AlwaysShowGroupFinder = true,
+                IconSmoothing = false,
 			},
 			gather =
 			{
@@ -379,6 +426,7 @@ function Mappy:InitializeSettings()
                 HideArchRing = false,
                 StackGroupFinder = true,
                 AlwaysShowGroupFinder = true,
+                IconSmoothing = false,
 			},
 		},
 	}
@@ -440,6 +488,18 @@ function Mappy:InitializeMinimap()
 	self.EventLib:RegisterEvent("PLAYER_STOPPED_MOVING", self.StoppedMoving, self)
 
     self.EventLib:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED", self.TalentChanged, self)
+
+	-- Scan after Blizzard's event handlers have created or refreshed texture pins.
+	self.EventLib:RegisterEvent("PLAYER_ENTERING_WORLD", self.MinimapSmoothingChanged, self)
+	self.EventLib:RegisterEvent("PLAYER_REGEN_ENABLED", self.MinimapSmoothingChanged, self)
+	self.EventLib:RegisterEvent("MINIMAP_UPDATE_ZOOM", self.MinimapSmoothingChanged, self)
+	self.EventLib:RegisterEvent("MINIMAP_UPDATE_TRACKING", self.MinimapSmoothingChanged, self)
+	if not self.IsForeverClient then
+		self.EventLib:RegisterEvent("AREA_POIS_UPDATED", self.MinimapSmoothingChanged, self)
+		self.EventLib:RegisterEvent("VIGNETTES_UPDATED", self.MinimapSmoothingChanged, self)
+	end
+	Minimap:HookScript("OnShow", function() self:MinimapSmoothingChanged() end)
+	self:ApplyMinimapSmoothing()
 
 	-- Hover alpha handling
 	Minimap:HookScript("OnEnter", function() Mappy:MinimapOnEnter() end)
@@ -1110,6 +1170,7 @@ function Mappy:LoadProfile(pProfile)
 	local vProfileChanged = self.CurrentProfile ~= pProfile
 	
 	self.CurrentProfile = pProfile
+	self:ApplyMinimapSmoothing()
 	self:UpdateButtonAutoHide()
 
 	if vProfileChanged then
@@ -2089,6 +2150,56 @@ end
 function Mappy:SetOldGatherNodes(pOld)
     self.CurrentProfile.OldGatherNodes = pOld
     self:ConfigureMinimapOptions()
+end
+
+function Mappy:MinimapSmoothingChanged()
+	if self.CurrentProfile.IconSmoothing ~= true and not next(SmoothedMinimapTextures) then return end
+	self.SchedulerLib:ScheduleUniqueTask(0, self.ApplyMinimapSmoothing, self)
+end
+
+-- Only Lua texture regions are eligible; engine-rendered blips are not regions.
+function Mappy:ApplyMinimapSmoothing()
+	if self.CurrentProfile.IconSmoothing ~= true then
+		for vTexture, vOriginal in pairs(SmoothedMinimapTextures) do
+			local vSnap, vBias = GetMinimapTextureSnapping(vTexture)
+			if vSnap ~= nil then
+				-- Leave properties another addon has changed since our write alone.
+				if vOriginal.Snap ~= nil and vSnap == false then
+					vTexture:SetSnapToPixelGrid(vOriginal.Snap)
+				end
+				if vOriginal.Bias ~= nil and vBias == 0 then
+					vTexture:SetTexelSnappingBias(vOriginal.Bias)
+				end
+				SmoothedMinimapTextures[vTexture] = nil
+			end
+		end
+		return
+	end
+
+	local function SmoothFrame(pFrame)
+		if not CanSmoothMinimapObject(pFrame) then return end
+		for _, vTexture in ipairs({pFrame:GetRegions()}) do
+			local vSnap, vBias = GetMinimapTextureSnapping(vTexture)
+			if vSnap ~= nil and not SmoothedMinimapTextures[vTexture]
+			and (vSnap or vBias ~= 0) then
+				SmoothedMinimapTextures[vTexture] = {
+					Snap = vSnap and vSnap or nil,
+					Bias = vBias ~= 0 and vBias or nil,
+				}
+				if vSnap then vTexture:SetSnapToPixelGrid(false) end
+				if vBias ~= 0 then vTexture:SetTexelSnappingBias(0) end
+			end
+		end
+		for _, vChild in ipairs({pFrame:GetChildren()}) do
+			SmoothFrame(vChild)
+		end
+	end
+	SmoothFrame(Minimap)
+end
+
+function Mappy:SetIconSmoothing(pEnabled)
+	self.CurrentProfile.IconSmoothing = pEnabled == true
+	self:ApplyMinimapSmoothing()
 end
 
 function Mappy:SetHideTracking(pHide)
@@ -3247,6 +3358,12 @@ function Mappy._AppearancePanel:Construct(pParent)
 		MappyHideArchRingCheckbuttonText:SetText("Hide archaeology area border")
 	end
 
+	-- Texture smoothing does not affect Blizzard's engine-rendered minimap blips.
+	self.IconSmoothingCheckbutton = CreateFrame("CheckButton", "MappyIconSmoothingCheckbutton", c, "InterfaceOptionsCheckButtonTemplate")
+	self.IconSmoothingCheckbutton:SetPoint("TOPLEFT", self.AutoHideButtonsCheckbutton, "TOPLEFT", 0, -60)
+	self.IconSmoothingCheckbutton:SetScript("OnClick", function (self) Mappy:SetIconSmoothing(self:GetChecked()) end)
+	MappyIconSmoothingCheckbuttonText:SetText("Smooth minimap texture icons (not gathering blips)")
+
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -3261,6 +3378,7 @@ function Mappy._AppearancePanel:OnShow()
 	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
 	self.AutoHideButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.AutoHideButtons)
+	self.IconSmoothingCheckbutton:SetChecked(Mappy.CurrentProfile.IconSmoothing == true)
 	if self.AlwaysShowGroupFinderCheckbutton then
 		self.AlwaysShowGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowGroupFinder)
 	end
