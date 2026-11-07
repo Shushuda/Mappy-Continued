@@ -68,6 +68,7 @@ Other features include:
 * [Shushuda](https://github.com/Shushuda) (maintainer of this fork - [Mappy-Continued](https://github.com/Shushuda/Mappy-Continued))
 * [wealdly](https://github.com/wealdly) (bugfixes and performance improvements)
 * [Little-Bunny-FuFu](https://github.com/Little-Bunny-FuFu) (bugfixes)
+* [Zuz666](https://github.com/Zuz666) (bugfixes and improvements)
 
 ## License
 
