@@ -2392,6 +2392,23 @@ function Mappy._MinimapButton:Mappy_SetStackingEnabled(pEnable)
 			
 			self.Mappy_SetPoint = self.SetPoint
 			self.Mappy_ClearAllPoints = self.ClearAllPoints
+
+			-- A retained interceptor belongs to this activation only. Old delegates
+			-- must pass through after disabling, including during later activations.
+			local vAnchors = self.Mappy_SavedAnchors
+			local vSetPoint, vClearAllPoints = self.Mappy_SetPoint, self.Mappy_ClearAllPoints
+			self.Mappy_SaveSetPoint = function(pFrame, ...)
+				if pFrame.Mappy_SavedAnchors == vAnchors then
+					return Mappy._MinimapButton.Mappy_SaveSetPoint(pFrame, ...)
+				end
+				return vSetPoint(pFrame, ...)
+			end
+			self.Mappy_SaveClearAllPoints = function(pFrame, ...)
+				if pFrame.Mappy_SavedAnchors == vAnchors then
+					return Mappy._MinimapButton.Mappy_SaveClearAllPoints(pFrame, ...)
+				end
+				return vClearAllPoints(pFrame, ...)
+			end
 			
 			self.SetPoint = self.Mappy_SaveSetPoint
 			self.ClearAllPoints = self.Mappy_SaveClearAllPoints
@@ -2458,6 +2475,7 @@ function Mappy._MinimapButton:Mappy_RestoreAnchors()
 	vClearAllPoints(self)
 	for vPoint, vAnchorInfo in pairs(vAnchors) do
 		vSetPoint(self, vPoint, vAnchorInfo.RelativeTo, vAnchorInfo.RelativePoint, vAnchorInfo.OffsetX, vAnchorInfo.OffsetY)
+		vAnchors[vPoint] = nil
 	end
 end
 
