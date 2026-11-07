@@ -1299,6 +1299,7 @@ function Mappy:BeginStackingButtons(pStackToScreen)
 	vInfo.CornerInfo = (self.CurrentProfile.CCW and self.CornerInfoCCW or self.CornerInfo)[vInfo.Corner]
 	vInfo.PreviousButton = nil
 	vInfo.FirstButton = nil
+	vInfo.CarryLeft = nil
 	vInfo.VisitedCorners = vInfo.StackingParent ~= UIParent and {[vInfo.Corner] = true} or nil
 	vInfo.SpaceRemaining = vInfo.CornerInfo.IsVert and (vInfo.Top - vInfo.Bottom) or (vInfo.Right - vInfo.Left)
 	vInfo.ButtonFrameLevel = Minimap:GetFrameLevel() + 5
@@ -1315,8 +1316,8 @@ function Mappy:StackButton(pButton, pNextButton)
 	local vHalfHeight = GetStackingButtonSize(pButton, true) / 2
 	local vNewSide = not vInfo.PreviousButton
 
-	-- A turn carries the previous button's footprint onto the new side, rather
-	-- than resetting to the corner and overlapping its border.
+	-- Carry the occupied side's bounds around a turn. A smaller last button must
+	-- not let the next side overlap a larger button immediately before it.
 	for vAttempt = 1, 4 do
 		local vCorner = vInfo.CornerInfo
 		local vLength = vCorner.IsVert and (vInfo.Top - vInfo.Bottom) or (vInfo.Right - vInfo.Left)
@@ -1324,17 +1325,20 @@ function Mappy:StackButton(pButton, pNextButton)
 		local vX = vCorner.HorizInsetDir == 1 and vInfo.Left or vInfo.Right
 		local vY = vCorner.VertInsetDir == 1 and vInfo.Bottom or vInfo.Top
 		local vCenter = 0
-		if vInfo.PreviousButton then
-			if not vNewSide then
-				vCenter = vLength - vInfo.SpaceRemaining + vCorner.ButtonGap + vHalfSize
-			elseif vCorner.IsVert then
-				if vX + vHalfWidth > vInfo.PreviousLeft and vX - vHalfWidth < vInfo.PreviousRight then
-					vCenter = vCorner.VertGap < 0 and (vY - vInfo.PreviousBottom + vHalfSize + vCorner.ButtonGap)
-						or (vInfo.PreviousTop - vY + vHalfSize + vCorner.ButtonGap)
+		if vInfo.PreviousButton and not vNewSide then
+			vCenter = vLength - vInfo.SpaceRemaining + vCorner.ButtonGap + vHalfSize
+		end
+		if vInfo.CarryLeft then
+			if vCorner.IsVert then
+				if vX + vHalfWidth > vInfo.CarryLeft and vX - vHalfWidth < vInfo.CarryRight then
+					local vClearance = vCorner.VertGap < 0 and (vY - vInfo.CarryBottom + vHalfSize + vCorner.ButtonGap)
+						or (vInfo.CarryTop - vY + vHalfSize + vCorner.ButtonGap)
+					vCenter = math.max(vCenter, vClearance)
 				end
-			elseif vY + vHalfHeight > vInfo.PreviousBottom and vY - vHalfHeight < vInfo.PreviousTop then
-				vCenter = vCorner.HorizGap < 0 and (vX - vInfo.PreviousLeft + vHalfSize + vCorner.ButtonGap)
-					or (vInfo.PreviousRight - vX + vHalfSize + vCorner.ButtonGap)
+			elseif vY + vHalfHeight > vInfo.CarryBottom and vY - vHalfHeight < vInfo.CarryTop then
+				local vClearance = vCorner.HorizGap < 0 and (vX - vInfo.CarryLeft + vHalfSize + vCorner.ButtonGap)
+					or (vInfo.CarryRight - vX + vHalfSize + vCorner.ButtonGap)
+				vCenter = math.max(vCenter, vClearance)
 			end
 		end
 		vCenter = math.max(0, vCenter)
@@ -1381,18 +1385,27 @@ function Mappy:StackButton(pButton, pNextButton)
 				(vCorner.VertInsetDir * vInfo.StackingInsetY + vCorner.VertGap * vCenter) / vButtonScale)
 			vInfo.SpaceRemaining = vLength - vCenter - vHalfSize
 			vInfo.PreviousButton = pButton
-			vInfo.PreviousLeft, vInfo.PreviousRight = vLeft, vRight
-			vInfo.PreviousBottom, vInfo.PreviousTop = vBottom, vTop
-			if not vInfo.FirstButton then
+			if vNewSide then
+				vInfo.SideLeft, vInfo.SideRight = vLeft, vRight
+				vInfo.SideBottom, vInfo.SideTop = vBottom, vTop
+			else
+				vInfo.SideLeft, vInfo.SideRight = math.min(vInfo.SideLeft, vLeft), math.max(vInfo.SideRight, vRight)
+				vInfo.SideBottom, vInfo.SideTop = math.min(vInfo.SideBottom, vBottom), math.max(vInfo.SideTop, vTop)
+			end
+			if vInfo.Corner == self.StartingCorner then
 				vInfo.FirstButton = pButton
-				vInfo.FirstLeft, vInfo.FirstRight = vLeft, vRight
-				vInfo.FirstBottom, vInfo.FirstTop = vBottom, vTop
+				vInfo.FirstLeft, vInfo.FirstRight = vInfo.SideLeft, vInfo.SideRight
+				vInfo.FirstBottom, vInfo.FirstTop = vInfo.SideBottom, vInfo.SideTop
 			end
 			return
 		end
 
 		if vClosingCorner then
 			return true
+		end
+		if vInfo.PreviousButton then
+			vInfo.CarryLeft, vInfo.CarryRight = vInfo.SideLeft, vInfo.SideRight
+			vInfo.CarryBottom, vInfo.CarryTop = vInfo.SideBottom, vInfo.SideTop
 		end
 		vInfo.Corner = vCorner.NextCorner
 		vInfo.CornerInfo = (self.CurrentProfile.CCW and self.CornerInfoCCW or self.CornerInfo)[vInfo.Corner]
