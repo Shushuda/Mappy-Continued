@@ -35,6 +35,14 @@ Mappy.ButtonHideDelay = 3
 Mappy.ButtonFadeDuration = 0.2
 Mappy.ButtonsHidden = false
 
+-- Minimap view radius in yards at each zoom level while it draws outdoor map art
+-- Retail has an extra zoomed-out level
+if Mappy.IsForeverClient then
+    Mappy.OutdoorViewRadius = {[0] = 233.33, 200, 166.67, 133.33, 100, 66.67}
+else
+    Mappy.OutdoorViewRadius = {[0] = 333.33, 233.33, 200, 166.67, 133.33, 100}
+end
+
 Mappy.BlizzardButtonNames = {
     "MinimapCluster.DielFrame", -- Forever client
     "GameTimeFrame",
@@ -440,6 +448,12 @@ function Mappy:InitializeMinimap()
 	-- Register for events
 	self.EventLib:RegisterEvent("ZONE_CHANGED", self.ZoneChanged, self)
 	self.EventLib:RegisterEvent("ZONE_CHANGED_INDOORS", self.ZoneChanged, self)
+    self.EventLib:RegisterEvent("MINIMAP_UPDATE_ZOOM", self.ZoneChanged, self)
+
+    -- The indoor check needs a radius for every zoom level, which start at 0
+    if Minimap:GetZoomLevels() ~= #self.OutdoorViewRadius + 1 then
+        self:ErrorMessage("Minimap zoom data is out of date. The minimap may turn black indoors when its alpha is below 100%. Please report this on Mappy Continued's GitHub page.")
+    end
 
 	self.EventLib:RegisterEvent("PLAYER_ENTERING_WORLD", self.RegenEnabled, self)
 	self.EventLib:RegisterEvent("PLAYER_REGEN_ENABLED", self.RegenEnabled, self)
@@ -1796,8 +1810,19 @@ function Mappy:IsDruidTravelForm()
     return false
 end
 
+-- True while the minimap draws indoor map art. IsIndoors() misses it in some cities
+function Mappy:IsMinimapInIndoorMode()
+    local vOutdoorRadius = self.OutdoorViewRadius[Minimap:GetZoom()]
+    -- Unknown zoom level, InitializeMinimap() reports it
+    if not vOutdoorRadius then
+        return false
+    end
+    -- Indoor zoom levels show less, 1 yard of room for rounding
+    return C_Minimap.GetViewRadius() < vOutdoorRadius - 1
+end
+
 function Mappy:ShouldForceMapToOpaque()
-	return IsIndoors()
+    return self:IsMinimapInIndoorMode()
 end
 
 function Mappy:GetInstanceType()
@@ -1855,12 +1880,12 @@ function Mappy:Update()
 	
 	-- Update the alpha
 	
-	local	vIndoors = IsIndoors()
-	
-	if self.wasIndoors ~= vIndoors then
-		self.wasIndoors = vIndoors
-		self:AdjustAlpha()
-	end
+    local vMinimapIndoors = self:IsMinimapInIndoorMode()
+
+    if self.wasMinimapIndoors ~= vMinimapIndoors then
+        self.wasMinimapIndoors = vMinimapIndoors
+        self:AdjustAlpha()
+    end
 
 	local	vResting = IsResting()
 	
@@ -1957,11 +1982,9 @@ function Mappy:AdjustAlpha(pForceAlpha)
 			vAlpha = self.CurrentProfile.MinimapAlpha or 1
 		end
 
-		-- Force the alpha to 1 if we're indoors.  The minimap doesn't work
-		-- properly if the alpha isn't 1 (it'll just show solid black) while
-		-- indoors (in this case, indoors means any major city, inside any building, any dungeon)
-		-- Detection of 'indoors' is imperfect however, so there are still times that the minimap
-		-- will go black when you don't want it to
+        -- Force the alpha to 1 if we're indoors. The minimap doesn't work
+        -- properly if the alpha isn't 1 (it'll just show solid black) while
+        -- it draws indoor map art, as in buildings, some cities, dungeons.
 
 		local forceToOpaque = self:ShouldForceMapToOpaque()
 		if vAlpha > 0 and forceToOpaque then
