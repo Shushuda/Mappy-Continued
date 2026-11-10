@@ -147,6 +147,16 @@ The tree is the same on both clients: `UIParent → MinimapCluster → MinimapCo
   - **LibDBIcon's mouseover hide:** Mappy turns it off on its own buttons, at startup and whenever an addon turns it back on (`DisableLibDBIconMouseover()`), so "Show buttons ONLY on mouseover" is the only one. A button that's invisible in the stacked ring would leave a hole, and Mappy sets every button's alpha anyway.
   - `FadeTarget`, `MinimapFaderAlpha` and `ButtonFaderAlpha` hold the values Mappy set; nothing reads them back with `GetAlpha()`.
   - **FarmHud** owns the map's alpha while its HUD is shown, and Mappy re-applies its own once the minimap has left the HUD.
+- **Indoor map art:** below 100% alpha the minimap draws black while it shows indoor map art, so `AdjustAlpha()` forces 100% then (`ShouldForceMapToOpaque()`). After every fade, `OnFadeFinished()` nudges the zoom a step and back to redraw the map.
+  - The minimap's indoor mode is separate from `IsIndoors()`. Buildings switch both. On Forever, Orgrimmar (from its entrance corridor on) and Undercity below ground switch only the minimap; Thunder Bluff and Undercity's ruins switch neither (seen in game). Retail has fewer such spots. Map IDs don't line up with the swap: Undercity's 1458 also covers the ruins.
+  - No API returns the mode. At the same `Minimap:GetZoom()` step, `C_Minimap.GetViewRadius()` (yards) is smaller in indoor mode, and Mappy's Size setting doesn't change it. `IsMinimapInIndoorMode()` compares it with `OutdoorViewRadius`; Mappy doesn't use `IsIndoors()`. Step 0 is fully zoomed out, 5 fully in; retail has an extra zoomed-out step (seen in game):
+    - Forever outdoor: 233.3, 200, 166.7, 133.3, 100, 66.7
+    - Forever indoor: 150, 120, 90, 60, 40, 25
+    - Retail outdoor: 333.3, 233.3, 200, 166.7, 133.3, 100
+    - Retail indoor: 220, 150, 120, 90, 60, 40
+  - If `Minimap:GetZoomLevels()` doesn't match `OutdoorViewRadius`, `InitializeMinimap()` prints an error asking players to report it.
+  - The saved zoom settings `minimapZoom` and `minimapInsideZoom` can't tell the modes apart when they're equal.
+  - `MINIMAP_UPDATE_ZOOM` fires on the swap, with the radius already updated, and on every `Minimap:SetZoom()` (wheel zoom, the fade nudge). Two `SetZoom()` calls in one go fire it once, after both (seen in game). Mappy listens to it with `ZoneChanged()`, and `Update()` polls the check as a backup.
 
 ### Minimap Insets
 
