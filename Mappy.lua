@@ -369,6 +369,7 @@ function Mappy:InitializeSettings()
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
+                HideMinimapAtZeroAlpha = false,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = false,
@@ -407,6 +408,7 @@ function Mappy:InitializeSettings()
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
+                HideMinimapAtZeroAlpha = false,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = true,
@@ -540,8 +542,10 @@ function Mappy:InitializeMinimap()
         end)
 
         -- Put quest areas back to their defaults while the minimap is in the HUD
+        -- and show FarmHud's stand-in at the map's spot
         FarmHud:HookScript("OnShow", function()
             Mappy:ApplyBlobAlpha()
+            Mappy:UpdateMinimapShown()
         end)
 
         -- Let FarmHud keep frames anchored to the minimap in place while the HUD is shown
@@ -752,6 +756,8 @@ function Mappy:ConfigureMinimapOptions()
 
     -- But only alpha works on the rest
     self:ApplyBlobAlpha()
+
+    self:UpdateMinimapShown()
 
 	self:AdjustBackgroundStyle()
 end
@@ -1613,6 +1619,18 @@ function Mappy:ConfigureMinimap()
     self:AdjustAlpha()
 end
 
+-- IsVisible(), but counts the map as shown while it's hidden at 0% alpha
+function Mappy:IsButtonVisible(pButton)
+    local vFrame = pButton
+    while vFrame do
+        if not vFrame:IsShown() and vFrame ~= MinimapCluster.MinimapContainer then
+            return false
+        end
+        vFrame = vFrame:GetParent()
+    end
+    return true
+end
+
 function Mappy:StackMinimapButtons()
     if GameTimeFrame then
         GameTimeFrame:ClearAllPoints()
@@ -1663,7 +1681,7 @@ function Mappy:StackMinimapButtons()
         -- Otherwise it stays empty on exiting the Delve and it pisses me off
 
 		if vNextButton.Mappy_SetPoint then
-			if vButton and vButton:IsVisible() then
+			if vButton and self:IsButtonVisible(vButton) then
 				self:StackButton(vButton, vNextButton)
 			end
 
@@ -1675,7 +1693,7 @@ function Mappy:StackMinimapButtons()
 		end
 	end
 
-	if vButton and vButton:IsVisible() then
+	if vButton and self:IsButtonVisible(vButton) then
 		self:StackButton(vButton, nil)
 	end
 
@@ -1940,7 +1958,7 @@ function Mappy:UpdateCoords()
     end
 end
 
--- Set the map, zone name and clock alpha, and update the buttons and quest areas
+-- Set the map, zone name and clock alpha, and update the buttons, quest areas and the hide
 function Mappy:ApplyMinimapAlpha(pAlpha)
     self.MinimapFaderAlpha = pAlpha
     Minimap:SetAlpha(pAlpha)
@@ -1950,6 +1968,7 @@ function Mappy:ApplyMinimapAlpha(pAlpha)
     end
     self:SetButtonsAlpha()
     self:ApplyBlobAlpha()
+    self:UpdateMinimapShown()
 end
 
 -- Set the alpha of quest, world quest and dig site areas
@@ -1971,6 +1990,24 @@ function Mappy:ApplyBlobAlpha()
     Minimap:SetTaskBlobOutsideAlpha(scaleBlobAlpha(self.TaskBlobOutsideAlpha, vAlpha))
     Minimap:SetArchBlobOutsideAlpha(scaleBlobAlpha(self.BlobOutsideAlpha, vAlpha))
     Minimap:SetArchBlobInsideAlpha(scaleBlobAlpha(self.ArchBlobInsideAlpha, vAlpha))
+end
+
+-- Hide the map at 0% alpha, its icons ignore alpha
+-- Uses the container because others show and hide Minimap itself
+function Mappy:UpdateMinimapShown()
+    local vContainer = MinimapCluster.MinimapContainer
+
+    -- Same safety net as ConfigureMinimap
+    if vContainer:IsProtected() and not vContainer:CanChangeProtectedState() then
+        return
+    end
+
+    -- FarmHud's stand-in for the map is in the container
+    local vHide = self.CurrentProfile.HideMinimapAtZeroAlpha
+        and self.MinimapFaderAlpha == 0
+        and not self:IsMinimapInFarmHud()
+
+    vContainer:SetShown(not vHide)
 end
 
 function Mappy:FadeAlphaTo(pTargetAlpha)
@@ -2347,6 +2384,13 @@ function Mappy:SetFadeBlobs(pValue)
 
     self.CurrentProfile.FadeBlobs = pValue
     self:ApplyBlobAlpha()
+end
+
+function Mappy:SetHideMinimapAtZeroAlpha(pValue)
+    if self.DisableUpdates then return end
+
+    self.CurrentProfile.HideMinimapAtZeroAlpha = pValue
+    self:UpdateMinimapShown()
 end
 
 function Mappy:SetAutoHideButtons(pValue)
@@ -3262,10 +3306,18 @@ function Mappy._AppearancePanel:Construct(pParent)
 		MappyAlwaysShowGroupFinderCheckbuttonText:SetText("Except the Group Finder eye")
 	end
 
+    -- Hide map icons at 0% alpha
+
+    self.HideMinimapAtZeroAlphaCheckbutton = CreateFrame("CheckButton", "MappyHideMinimapAtZeroAlphaCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.HideMinimapAtZeroAlphaCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
+    self.HideMinimapAtZeroAlphaCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideMinimapAtZeroAlpha(self:GetChecked()) end)
+    MappyHideMinimapAtZeroAlphaCheckbuttonText:SetText("Hide map icons at 0% alpha")
+    setCheckbuttonTooltip(self.HideMinimapAtZeroAlphaCheckbutton, "Ticked - the minimap is hidden completely at 0% alpha (nodes, arrows, quest areas included) and clicks pass through.\n\nUnticked - the icons stay visible at full opacity.")
+
     -- Quest areas ignore alpha
 
     self.FadeBlobsCheckbutton = CreateFrame("CheckButton", "MappyFadeBlobsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-    self.FadeBlobsCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
+    self.FadeBlobsCheckbutton:SetPoint("TOPLEFT", self.HideMinimapAtZeroAlphaCheckbutton, "TOPLEFT", 0, -25)
     self.FadeBlobsCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeBlobs(not self:GetChecked()) end)
     MappyFadeBlobsCheckbuttonText:SetText("Quest areas ignore minimap alpha sliders")
     local vFadeBlobsTooltip = "Ticked - quest, WQ and archaeology areas stay visible at full opacity when the minimap fades.\n\nUnticked - they fade with it, except the selected quest's area (AKA supertracked)."
@@ -3322,6 +3374,7 @@ function Mappy._AppearancePanel:OnShow()
 	if self.AlwaysShowGroupFinderCheckbutton then
 		self.AlwaysShowGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowGroupFinder)
 	end
+    self.HideMinimapAtZeroAlphaCheckbutton:SetChecked(Mappy.CurrentProfile.HideMinimapAtZeroAlpha)
     self.FadeBlobsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeBlobs)
 	self.HideQuestRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideQuestRing)
 	if self.HideTaskRingCheckbutton then
