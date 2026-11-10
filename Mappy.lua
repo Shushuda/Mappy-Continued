@@ -2949,7 +2949,7 @@ function Mappy._OptionsPanel:Construct(pParent)
 
     self.GatherHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.GatherHeader:SetPoint("TOPRIGHT", self.SettingsLine, "TOPRIGHT", -5, 13)
-    self.GatherHeader:SetText("Blizz broke it in 12.0.7. Working on a workaround!")
+    self.GatherHeader:SetText("Blizz broke it in 12.0.7 and hotfixed a workaround in Forever...")
 
 	-- Flash gathering nodes
 
@@ -3268,10 +3268,10 @@ function Mappy._AppearancePanel:Construct(pParent)
     self.FadeBlobsCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
     self.FadeBlobsCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeBlobs(not self:GetChecked()) end)
     MappyFadeBlobsCheckbuttonText:SetText("Quest areas ignore minimap alpha sliders")
-    local vFadeBlobsTooltip = "Quest, WQ and archaeology areas stay visible at full opacity while the minimap fades. Unticked, they fade with it, except the selected quest's area (AKA supertracked)."
+    local vFadeBlobsTooltip = "Ticked - quest, WQ and archaeology areas stay visible at full opacity when the minimap fades.\n\nUnticked - they fade with it, except the selected quest's area (AKA supertracked)."
     -- Forever client skips the WQ and archaeology options
     if Mappy.IsForeverClient then
-        vFadeBlobsTooltip = "Quest areas stay visible at full opacity while the minimap fades. Unticked, they fade with it, except the selected quest's area (AKA supertracked)."
+        vFadeBlobsTooltip = "Ticked - quest areas stay visible at full opacity when the minimap fades.\n\nUnticked - they fade with it, except the selected quest's area (AKA supertracked)."
     end
     setCheckbuttonTooltip(self.FadeBlobsCheckbutton, vFadeBlobsTooltip)
 
