@@ -22,7 +22,8 @@ Other features include:
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
 * Zooming in and out with the mouse wheel
 * Alpha settings, separate for combat, movement and default state
-* Option to hide the quest/WQ/archaeology border ring
+* Option to hide the quest/WQ/archaeology edge pattern
+* Option to fade quest/WQ/archaeology areas with the minimap alpha
 * Profiles (including being able to set a profile for mounting, dungeon etc)
 * Gathering overlay support for GatherMate
 * Compatibility with MinimapButtonBag Reborn
