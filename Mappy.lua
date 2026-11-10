@@ -266,15 +266,34 @@ Mappy.SquareQuestRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareQuestRing
 Mappy.SquareTaskRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareTaskRing"
 Mappy.SquareArchRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareArchRing"
 
--- Shown ring alpha, 0-255 scale
+-- Default ring, outline, and fill alpha, 0-255 scale
 -- Stolen from the regular map's defaults, eyeballed to be correct lol
+-- 255 is just eyeballed
 Mappy.BlobRingAlpha = 128
+Mappy.BlobOutsideAlpha = 128
+Mappy.TaskBlobOutsideAlpha = 255
+Mappy.ArchBlobInsideAlpha = 128
 
 
 -- local functions
 
 local function tableContains(table, key)
     return table[key] ~= nil
+end
+
+local function scaleBlobAlpha(pBase, pAlpha)
+    return math.floor(pBase * pAlpha + 0.5)
+end
+
+-- Show the checkbox label and a description on mouseover
+local function setCheckbuttonTooltip(pButton, pText)
+    pButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip_SetTitle(GameTooltip, self.Text:GetText())
+        GameTooltip_AddNormalLine(GameTooltip, pText)
+        GameTooltip:Show()
+    end)
+    pButton:SetScript("OnLeave", GameTooltip_Hide)
 end
 
 --
@@ -355,6 +374,7 @@ function Mappy:InitializeSettings()
                 HideQuestRing = false,
                 HideTaskRing = false,
                 HideArchRing = false,
+                FadeBlobs = true,
                 StackGroupFinder = true,
                 AlwaysShowGroupFinder = true,
                 AlwaysShowMail = true,
@@ -389,9 +409,10 @@ function Mappy:InitializeSettings()
                 MinimapHoverOpaque = false,
                 FadeButtons = true,
                 AutoHideButtons = true,
-                HideQuestRing = false,
-                HideTaskRing = false,
-                HideArchRing = false,
+                HideQuestRing = true,
+                HideTaskRing = true,
+                HideArchRing = true,
+                FadeBlobs = true,
                 StackGroupFinder = true,
                 AlwaysShowGroupFinder = true,
                 AlwaysShowMail = true,
@@ -516,6 +537,11 @@ function Mappy:InitializeMinimap()
                 Mappy:StopMinimapRotation()
                 Mappy:ApplyMinimapAlpha(Mappy.MinimapFaderAlpha)
             end
+        end)
+
+        -- Put quest areas back to their defaults while the minimap is in the HUD
+        FarmHud:HookScript("OnShow", function()
+            Mappy:ApplyBlobAlpha()
         end)
 
         -- Let FarmHud keep frames anchored to the minimap in place while the HUD is shown
@@ -724,18 +750,8 @@ function Mappy:ConfigureMinimapOptions()
 		Minimap:SetQuestBlobRingScalar(1)
 	end
 
-	-- But only alpha works on the rest
-	if self.CurrentProfile.HideTaskRing then
-		Minimap:SetTaskBlobRingAlpha(0)
-	else
-		Minimap:SetTaskBlobRingAlpha(self.BlobRingAlpha)
-	end
-
-	if self.CurrentProfile.HideArchRing then
-		Minimap:SetArchBlobRingAlpha(0)
-	else
-		Minimap:SetArchBlobRingAlpha(self.BlobRingAlpha)
-	end
+    -- But only alpha works on the rest
+    self:ApplyBlobAlpha()
 
 	self:AdjustBackgroundStyle()
 end
@@ -1924,7 +1940,7 @@ function Mappy:UpdateCoords()
     end
 end
 
--- Set the map, zone name and clock alpha, and update the buttons
+-- Set the map, zone name and clock alpha, and update the buttons and quest areas
 function Mappy:ApplyMinimapAlpha(pAlpha)
     self.MinimapFaderAlpha = pAlpha
     Minimap:SetAlpha(pAlpha)
@@ -1933,6 +1949,28 @@ function Mappy:ApplyMinimapAlpha(pAlpha)
         TimeManagerClockButton:SetAlpha(pAlpha)
     end
     self:SetButtonsAlpha()
+    self:ApplyBlobAlpha()
+end
+
+-- Set the alpha of quest, world quest and dig site areas
+function Mappy:ApplyBlobAlpha()
+    -- Keep the defaults while the minimap is in FarmHud's HUD
+    local vAlpha = 1
+    if self.CurrentProfile.FadeBlobs and not self:IsMinimapInFarmHud() then
+        vAlpha = self.MinimapFaderAlpha
+    end
+
+    local vRingAlpha = scaleBlobAlpha(self.BlobRingAlpha, vAlpha)
+
+    -- The selected quest's ring and outline ignore these
+    Minimap:SetQuestBlobRingAlpha(vRingAlpha)
+    Minimap:SetTaskBlobRingAlpha(self.CurrentProfile.HideTaskRing and 0 or vRingAlpha)
+    Minimap:SetArchBlobRingAlpha(self.CurrentProfile.HideArchRing and 0 or vRingAlpha)
+
+    Minimap:SetQuestBlobOutsideAlpha(scaleBlobAlpha(self.BlobOutsideAlpha, vAlpha))
+    Minimap:SetTaskBlobOutsideAlpha(scaleBlobAlpha(self.TaskBlobOutsideAlpha, vAlpha))
+    Minimap:SetArchBlobOutsideAlpha(scaleBlobAlpha(self.BlobOutsideAlpha, vAlpha))
+    Minimap:SetArchBlobInsideAlpha(scaleBlobAlpha(self.ArchBlobInsideAlpha, vAlpha))
 end
 
 function Mappy:FadeAlphaTo(pTargetAlpha)
@@ -2260,21 +2298,21 @@ end
 function Mappy:SetHideTaskRing(pHide)
 	if pHide then
 		self.CurrentProfile.HideTaskRing = true
-		Minimap:SetTaskBlobRingAlpha(0)
 	else
 		self.CurrentProfile.HideTaskRing = nil
-		Minimap:SetTaskBlobRingAlpha(self.BlobRingAlpha)
 	end
+
+    self:ApplyBlobAlpha()
 end
 
 function Mappy:SetHideArchRing(pHide)
 	if pHide then
 		self.CurrentProfile.HideArchRing = true
-		Minimap:SetArchBlobRingAlpha(0)
 	else
 		self.CurrentProfile.HideArchRing = nil
-		Minimap:SetArchBlobRingAlpha(self.BlobRingAlpha)
 	end
+
+    self:ApplyBlobAlpha()
 end
 
 function Mappy:SetAutoArrangeButtons(pEnable)
@@ -2302,6 +2340,13 @@ function Mappy:SetFadeButtons(pValue)
 
 	self.CurrentProfile.FadeButtons = pValue
     self:SetButtonsAlpha()
+end
+
+function Mappy:SetFadeBlobs(pValue)
+    if self.DisableUpdates then return end
+
+    self.CurrentProfile.FadeBlobs = pValue
+    self:ApplyBlobAlpha()
 end
 
 function Mappy:SetAutoHideButtons(pValue)
@@ -3217,12 +3262,26 @@ function Mappy._AppearancePanel:Construct(pParent)
 		MappyAlwaysShowGroupFinderCheckbuttonText:SetText("Except the Group Finder eye")
 	end
 
+    -- Quest areas ignore alpha
+
+    self.FadeBlobsCheckbutton = CreateFrame("CheckButton", "MappyFadeBlobsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.FadeBlobsCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
+    self.FadeBlobsCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeBlobs(not self:GetChecked()) end)
+    MappyFadeBlobsCheckbuttonText:SetText("Quest areas ignore minimap alpha sliders")
+    local vFadeBlobsTooltip = "Quest, WQ and archaeology areas stay visible at full opacity while the minimap fades. Unticked, they fade with it, except the selected quest's area (AKA supertracked)."
+    -- Forever client skips the WQ and archaeology options
+    if Mappy.IsForeverClient then
+        vFadeBlobsTooltip = "Quest areas stay visible at full opacity while the minimap fades. Unticked, they fade with it, except the selected quest's area (AKA supertracked)."
+    end
+    setCheckbuttonTooltip(self.FadeBlobsCheckbutton, vFadeBlobsTooltip)
+
 	-- Quest ring toggle
 
 	self.HideQuestRingCheckbutton = CreateFrame("CheckButton", "MappyHideQuestRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.HideQuestRingCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
+	self.HideQuestRingCheckbutton:SetPoint("TOPLEFT", self.FadeBlobsCheckbutton, "TOPLEFT", 0, -25)
 	self.HideQuestRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideQuestRing(self:GetChecked()) end)
-	MappyHideQuestRingCheckbuttonText:SetText("Hide quest area border")
+	MappyHideQuestRingCheckbuttonText:SetText("Hide quest area edge pattern")
+    setCheckbuttonTooltip(self.HideQuestRingCheckbutton, "Hides the hatched pattern along the minimap's edge where a quest area continues past the map.")
 
 	-- World quest ring toggle (Retail client)
 	-- Tentatively hidden on Forever since what would even use that?
@@ -3231,7 +3290,8 @@ function Mappy._AppearancePanel:Construct(pParent)
 		self.HideTaskRingCheckbutton = CreateFrame("CheckButton", "MappyHideTaskRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 		self.HideTaskRingCheckbutton:SetPoint("TOPLEFT", self.HideQuestRingCheckbutton, "TOPLEFT", 0, -25)
 		self.HideTaskRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTaskRing(self:GetChecked()) end)
-		MappyHideTaskRingCheckbuttonText:SetText("Hide world quest area border")
+		MappyHideTaskRingCheckbuttonText:SetText("Hide world quest area edge pattern")
+        setCheckbuttonTooltip(self.HideTaskRingCheckbutton, "Hides the hatched pattern along the minimap's edge where a WQ or bonus objective area continues past the map.")
 	end
 
 	-- Archaeology ring toggle (Retail client)
@@ -3240,7 +3300,8 @@ function Mappy._AppearancePanel:Construct(pParent)
 		self.HideArchRingCheckbutton = CreateFrame("CheckButton", "MappyHideArchRingCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
 		self.HideArchRingCheckbutton:SetPoint("TOPLEFT", self.HideTaskRingCheckbutton, "TOPLEFT", 0, -25)
 		self.HideArchRingCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideArchRing(self:GetChecked()) end)
-		MappyHideArchRingCheckbuttonText:SetText("Hide archaeology area border")
+		MappyHideArchRingCheckbuttonText:SetText("Hide archaeology area edge pattern")
+        setCheckbuttonTooltip(self.HideArchRingCheckbutton, "Hides the hatched pattern along the minimap's edge where a dig site continues past the map.")
 	end
 
 	self:SetScript("OnShow", self.OnShow)
@@ -3261,6 +3322,7 @@ function Mappy._AppearancePanel:OnShow()
 	if self.AlwaysShowGroupFinderCheckbutton then
 		self.AlwaysShowGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowGroupFinder)
 	end
+    self.FadeBlobsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeBlobs)
 	self.HideQuestRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideQuestRing)
 	if self.HideTaskRingCheckbutton then
 		self.HideTaskRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideTaskRing)
