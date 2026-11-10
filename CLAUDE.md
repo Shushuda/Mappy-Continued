@@ -117,7 +117,7 @@ Known gap: with Edit Mode positioning, a layout switch from anything other than 
 ### Combat Handling
 
 On retail and Forever, none of the minimap frames Mappy touches are protected: `IsProtected()` returns `false` for `Minimap`, `MinimapCluster` and the Blizzard buttons Mappy hides. Mappy configures the minimap during combat, including on a combat login. The remaining checks:
-- `ConfigureMinimap()` returns early if `MinimapCluster` is protected and locked (a safety net in case Blizzard ever protects it) and while Edit Mode is active.
+- `ConfigureMinimap()` returns early if `MinimapCluster` is protected and locked (a safety net in case Blizzard ever protects it) and while Edit Mode is active. `UpdateMinimapShown()` has the same safety net for `MinimapContainer`.
 - `/mappy` without arguments won't open the settings panel in combat, because `C_SettingsUtil.OpenSettingsPanel` is restricted for addons.
 - `SelectAutoProfile()` waits for combat to end, so the minimap doesn't resize mid-fight.
 - Edit Mode hooks are described under Edit Mode Integration.
@@ -129,7 +129,7 @@ The tree is the same on both clients: `UIParent → MinimapCluster → MinimapCo
 - **`MinimapContainer`'s children:** `Minimap` and `PlayerCoords` (Mappy hides `PlayerCoords`), plus Forever's `DielFrame`, created in Lua (`Diel.lua:19`).
 - **`MinimapBackdrop`:** `InitializeSquareShape()` replaces the global with Mappy's own frame, a child of the original. Blizzard code that reads the global gets Mappy's frame, so Mappy copies the original's `StaticOverlayTexture` and `ExternalEventURLButton` onto it. FarmHud also reads the global.
 - **`QueueStatusButton`** is a child of `UIParent`.
-- Blizzard only sets `MinimapContainer`'s scale and position, and Mappy forces its scale to 1 (`OverrideEditModeSize()`).
+- Blizzard only sets `MinimapContainer`'s scale and position, and Mappy forces its scale to 1 (`OverrideEditModeSize()`) and hides it at 0% alpha (see Alpha).
 - **Button parents:** every registered addon button sits under `MinimapCluster`, whatever the auto-arrange setting. `StackButton()` reparents stacked buttons, and `StackMinimapButtons()` gives unstacked addon buttons the same parent and frame level. Blizzard buttons are always stacked, but only visible buttons get stacked, so one that hasn't been shown since login keeps Blizzard's parent (for the expansion landing page button, the original `MinimapBackdrop`, inside `Minimap`).
 
 ### Alpha
@@ -147,6 +147,7 @@ The tree is the same on both clients: `UIParent → MinimapCluster → MinimapCo
   - The map's own alpha is used rather than `MinimapContainer`'s, so the map keeps Mappy's alpha even while another addon has its ignore-parent-alpha flag on.
   - **Buttons:** `SetButtonsAlpha()` sets each button's own alpha to the auto-hide fade (`ButtonFader`) × the minimap alpha, or × 1 with "Buttons ignore minimap alpha sliders" ticked. Mappy never turns ignore-parent-alpha on, so everything follows whole-UI fades.
   - **Quest areas:** `ApplyBlobAlpha()` sets each part to its default × the minimap alpha while the profile's `FadeBlobs` is on, and to its default otherwise, so the areas fade with the map, except the selected quest's ring and outline. They only follow Mappy's alpha, not whole-UI fades. While the minimap is in FarmHud's HUD, they get their defaults. If Blizzard changes a default, Mappy keeps drawing the old value and can't tell, since nothing reads it back.
+  - **Hiding at 0%:** blips and the player arrow ignore alpha, and quest areas only partly follow it (see Quest areas), so with the profile's `HideMinimapAtZeroAlpha` on, `UpdateMinimapShown()` hides `MinimapContainer` while Mappy's alpha is 0. It hides the container, not `Minimap`: Blizzard (Toggle Minimap keybinding, new-player tutorial, `MinimapDisabled` game rule), FarmHud (when its HUD hides) and `UIFrameFade()` (DynamicCam) show and hide `Minimap` itself, and nothing else touches the container. It stays shown while the minimap is in FarmHud's HUD, since FarmHud's stand-in is in it. Hover still works through `Update()`'s `MinimapCluster:IsMouseOver()` check, up to 0.2s later. `StackMinimapButtons()` counts the hidden container as shown (`IsButtonVisible()`), so buttons still inside the minimap get stacked. Hiding the container fires `OnHide` on the frames inside it; Blizzard's handlers there (the expansion landing page button's alert callbacks, Forever's event button glow) are undone on `OnShow`.
   - **LibDBIcon's mouseover hide:** Mappy turns it off on its own buttons, at startup and whenever an addon turns it back on (`DisableLibDBIconMouseover()`), so "Show buttons ONLY on mouseover" is the only one. A button that's invisible in the stacked ring would leave a hole, and Mappy sets every button's alpha anyway.
   - `FadeTarget`, `MinimapFaderAlpha` and `ButtonFaderAlpha` hold the values Mappy set; nothing reads them back with `GetAlpha()`.
   - **FarmHud** owns the map's alpha while its HUD is shown, and Mappy re-applies its own once the minimap has left the HUD.
