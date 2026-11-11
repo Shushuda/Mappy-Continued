@@ -46,6 +46,62 @@ else
     Mappy.OutdoorViewRadius = {[0] = 333.33, 233.33, 200, 166.67, 133.33, 100}
 end
 
+-- Border tint. Retail's tooltip art at 85% is closest to the old border
+-- Forever's is drawn as is
+Mappy.BorderTint = Mappy.IsForeverClient and 1 or 0.85
+
+-- Like Blizzard's SetupPieceVisuals(), but can flip a piece upside down
+local function setupBorderPiece(pContainer, pPiece, pSetup, pPieceLayout)
+    local vInfo = C_Texture.GetAtlasInfo(pPieceLayout.atlas)
+    if not vInfo then
+        return
+    end
+
+    pPiece:SetHorizTile(vInfo.tilesHorizontally)
+    pPiece:SetVertTile(vInfo.tilesVertically)
+    -- Texture coordinates go before the atlas, as Blizzard does for its mirrored pieces
+    if pPieceLayout.flip then
+        pPiece:SetTexCoord(0, 1, 1, 0)
+    else
+        pPiece:SetTexCoord(0, 1, 0, 1)
+    end
+    pPiece:SetAtlas(pPieceLayout.atlas, true)
+end
+
+-- Forever-style border, same as menu windows (Forever client)
+-- The window's top has a title bar, so the top uses the bottom pieces upside down
+-- Offsets are from Mappy's backdrop, which sits 4 outside the map
+-- So the sides are 17, 12, 7 and 12 outside the map (left, top, right, bottom)
+Mappy.WindowBorderLayout = {
+    disableSharpening = true,
+    setupPieceVisualsFunction = setupBorderPiece,
+    TopLeftCorner = { atlas = "UI-Frame-Metal-CornerBottomLeft", x = -13, y = 8, flip = true },
+    TopRightCorner = { atlas = "UI-Frame-Metal-CornerBottomRight", x = 3, y = 8, flip = true },
+    BottomLeftCorner = { atlas = "UI-Frame-Metal-CornerBottomLeft", x = -13, y = -8 },
+    BottomRightCorner = { atlas = "UI-Frame-Metal-CornerBottomRight", x = 3, y = -8 },
+    TopEdge = { atlas = "_UI-Frame-Metal-EdgeBottom", flip = true },
+    BottomEdge = { atlas = "_UI-Frame-Metal-EdgeBottom" },
+    LeftEdge = { atlas = "!UI-Frame-Metal-EdgeLeft" },
+    RightEdge = { atlas = "!UI-Frame-Metal-EdgeRight" },
+}
+
+-- Window border art sizes the offsets were tuned with (Forever 1.60.1)
+Mappy.WindowBorderArtSizes = {
+    ["UI-Frame-Metal-CornerBottomLeft"] = { width = 95, height = 100 },
+    ["UI-Frame-Metal-CornerBottomRight"] = { width = 95, height = 100 },
+    ["!UI-Frame-Metal-EdgeLeft"] = { width = 95 },
+    ["!UI-Frame-Metal-EdgeRight"] = { width = 95 },
+    ["_UI-Frame-Metal-EdgeBottom"] = { height = 100 },
+}
+
+-- Each window border corner's neighbors: same row, same column
+Mappy.WindowBorderCorners = {
+    TopLeftCorner = { "TopRightCorner", "BottomLeftCorner" },
+    TopRightCorner = { "TopLeftCorner", "BottomRightCorner" },
+    BottomLeftCorner = { "BottomRightCorner", "TopLeftCorner" },
+    BottomRightCorner = { "BottomLeftCorner", "TopRightCorner" },
+}
+
 Mappy.BlizzardButtonNames = {
     "MinimapCluster.DielFrame", -- Forever client
     "GameTimeFrame",
@@ -386,6 +442,7 @@ function Mappy:InitializeSettings()
 				AutoArrangeButtons = true,
 				StackToScreen = false,
 				HideBorder = false,
+                WindowBorder = false,
 				HideTracking = false,
                 HideAddonCompartment = false,
                 HideZoomButtons = false,
@@ -427,6 +484,7 @@ function Mappy:InitializeSettings()
 				AutoArrangeButtons = true,
 				StackToScreen = true,
 				HideBorder = true,
+                WindowBorder = false,
 				HideTracking = false,
                 HideAddonCompartment = false,
                 HideZoomButtons = false,
@@ -967,13 +1025,90 @@ function Mappy:InitializeDragging()
 end
 
 function Mappy:AdjustBackgroundStyle()
-	if self.CurrentProfile.HideBorder then
-		MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 0.0)
-		MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 0.0, 0.0)
-	else
-		MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75)
-		MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 0.0)
-	end
+    local vWindowBorder = self:UsesWindowBorder()
+
+    self.TooltipBorder:SetShown(not self.CurrentProfile.HideBorder and not vWindowBorder)
+
+    if self.WindowBorder then
+        self.WindowBorder:SetShown(vWindowBorder)
+        if vWindowBorder then
+            self:CheckWindowBorderArt()
+            self:CropWindowBorderCorners()
+        end
+    end
+
+    -- The zone name sits right above the border
+    self:AnchorZoneText()
+end
+
+-- Forever-style border is drawn (Forever client)
+function Mappy:UsesWindowBorder()
+    return self.WindowBorder ~= nil and self.CurrentProfile.WindowBorder and not self.CurrentProfile.HideBorder
+end
+
+-- Crop the Forever-style border's corners where they'd overlap on a small map
+-- Keeps their outer part
+function Mappy:CropWindowBorderCorners()
+    local vLayout = self.WindowBorderLayout
+    local vWidth, vHeight = self.WindowBorder:GetSize()
+
+    -- Room between the outer sides of opposite corners
+    vWidth = vWidth - vLayout.TopLeftCorner.x + vLayout.TopRightCorner.x
+    vHeight = vHeight + vLayout.TopLeftCorner.y - vLayout.BottomLeftCorner.y
+
+    for vName, vNeighbors in pairs(self.WindowBorderCorners) do
+        local vInfo = C_Texture.GetAtlasInfo(vLayout[vName].atlas)
+        local vRowInfo = C_Texture.GetAtlasInfo(vLayout[vNeighbors[1]].atlas)
+        local vColumnInfo = C_Texture.GetAtlasInfo(vLayout[vNeighbors[2]].atlas)
+        if not (vInfo and vRowInfo and vColumnInfo) then
+            return
+        end
+
+        -- Each corner gives up half of the overlap
+        local vCropX = math.max(0, (vInfo.width + vRowInfo.width - vWidth) / 2)
+        local vCropY = math.max(0, (vInfo.height + vColumnInfo.height - vHeight) / 2)
+
+        local vLeft, vRight = vInfo.leftTexCoord, vInfo.rightTexCoord
+        local vTop, vBottom = vInfo.topTexCoord, vInfo.bottomTexCoord
+        local vKeepX = (vRight - vLeft) * (1 - vCropX / vInfo.width)
+        local vKeepY = (vBottom - vTop) * (1 - vCropY / vInfo.height)
+
+        -- Keep the art's outer side and its bottom, since every corner is a bottom piece
+        if vName:find("Left") then
+            vRight = vLeft + vKeepX
+        else
+            vLeft = vRight - vKeepX
+        end
+        vTop = vBottom - vKeepY
+
+        if vLayout[vName].flip then
+            vTop, vBottom = vBottom, vTop
+        end
+
+        local vPiece = self.WindowBorder[vName]
+        vPiece:SetTexture(vInfo.file or vInfo.filename)
+        vPiece:SetTexCoord(vLeft, vRight, vTop, vBottom)
+        vPiece:SetSize(vInfo.width - vCropX, vInfo.height - vCropY)
+    end
+end
+
+-- Warn once if the Forever-style border's art changed size, since its offsets were tuned to it
+function Mappy:CheckWindowBorderArt()
+    if self.WindowBorderArtChecked then
+        return
+    end
+    self.WindowBorderArtChecked = true
+
+    for vAtlas, vSize in pairs(self.WindowBorderArtSizes) do
+        local vInfo = C_Texture.GetAtlasInfo(vAtlas)
+        -- Sizes read back slightly off (95.000076), so allow a margin
+        if not vInfo
+        or (vSize.width and math.abs(vInfo.width - vSize.width) > 0.5)
+        or (vSize.height and math.abs(vInfo.height - vSize.height) > 0.5) then
+            self:ErrorMessage("The border art has changed; it may look wrong now. Please report this on Mappy Continued's GitHub page.")
+            return
+        end
+    end
 end
 
 function Mappy:InitializeSquareShape()
@@ -991,8 +1126,7 @@ function Mappy:InitializeSquareShape()
 
     MinimapCompassTexture:SetTexture(nil)
 
-	-- 10/14/2020 - Updated code to use the new Backdrop templates -LynchburgJack
-	MinimapBackdrop = CreateFrame("Frame", "Backdrop", MinimapBackdrop, BackdropTemplateMixin and "BackdropTemplate")
+	MinimapBackdrop = CreateFrame("Frame", "Backdrop", MinimapBackdrop)
 
 	-- Transfer StaticOverlayTexture from the original MinimapBackdrop
 	-- Use custom square texture instead of Blizzard's circular one
@@ -1011,21 +1145,27 @@ function Mappy:InitializeSquareShape()
     -- Blizzard re-anchors this button through MinimapBackdrop
     MinimapBackdrop.ExternalEventURLButton = MinimapBackdrop:GetParent().ExternalEventURLButton
 
-	MinimapBackdrop.backdropInfo = {
-		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		tile = true, tileSize = 16, edgeSize = 16,
-		insets = {left = 3, right = 3, top = 3, bottom = 3},
-	}
-
-	MinimapBackdrop:SetBackdrop(MinimapBackdrop.backdropInfo)
-	MinimapBackdrop:SetBackdropBorderColor(0.75, 0.75, 0.75, 1.0)
-	MinimapBackdrop:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
-
-    -- Change the backdrop to size with the map
+    -- Change the backdrop to size with the map, 4 outside it
     MinimapBackdrop:ClearAllPoints()
     MinimapBackdrop:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -4, 4)
     MinimapBackdrop:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 4, -4)
+
+    -- Tooltip border, the default
+    self.TooltipBorder = CreateFrame("Frame", nil, MinimapBackdrop, "NineSliceCodeTemplate")
+    self.TooltipBorder:SetAllPoints()
+    NineSliceUtil.ApplyLayoutByName(self.TooltipBorder, "TooltipDefaultLayout")
+    -- The tooltip's dark fill would cover the map
+    self.TooltipBorder.Center:Hide()
+    self.TooltipBorder:SetBorderColor(self.BorderTint, self.BorderTint, self.BorderTint)
+
+    -- Forever-style border (Forever client)
+    if Mappy.IsForeverClient then
+        self.WindowBorder = CreateFrame("Frame", nil, MinimapBackdrop, "NineSliceCodeTemplate")
+        self.WindowBorder:SetAllPoints()
+        NineSliceUtil.ApplyLayout(self.WindowBorder, self.WindowBorderLayout)
+        self.WindowBorder:SetScript("OnSizeChanged", function() Mappy:CropWindowBorderCorners() end)
+        self.WindowBorder:Hide()
+    end
 
     MinimapZoneText:SetAllPoints(MinimapCluster.ZoneTextButton)
     MinimapZoneText:SetJustifyH("CENTER")
@@ -1033,13 +1173,11 @@ function Mappy:InitializeSquareShape()
     -- Use retail's zone text size (to override Forever's smaller font)
     MinimapZoneText:SetFont(GameFontNormal:GetFont())
 
-    -- Move zoom buttons to the corner and raise strata above the backdrop
+    -- Move zoom buttons to the corner and raise them above the border
     Minimap.ZoomIn:SetPoint("TOPLEFT", 22, -2)
     Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
-    Minimap.ZoomIn:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
-    Minimap.ZoomOut:SetFrameLevel(MinimapBackdrop:GetFrameLevel() + 1)
-
-	MinimapBackdrop:ApplyBackdrop()
+    Minimap.ZoomIn:SetFrameLevel(self.TooltipBorder:GetFrameLevel() + 1)
+    Minimap.ZoomOut:SetFrameLevel(self.TooltipBorder:GetFrameLevel() + 1)
 end
 
 -- Stop minimap rotation
@@ -1072,8 +1210,11 @@ end
 
 -- Move the zone text to the top and make it wider
 function Mappy:AnchorZoneText()
+    -- Right above the border
+    local vOffset = self:UsesWindowBorder() and 8 or 4
+
     MinimapCluster.ZoneTextButton:ClearAllPoints()
-    MinimapCluster.ZoneTextButton:SetPoint("BOTTOM", Minimap, "TOP", 0, 4)
+    MinimapCluster.ZoneTextButton:SetPoint("BOTTOM", Minimap, "TOP", 0, vOffset)
     MinimapCluster.ZoneTextButton:SetSize(180, 12)
 end
 
@@ -2405,6 +2546,11 @@ function Mappy:SetHideBorder(pHide)
 	self:AdjustBackgroundStyle()
 end
 
+function Mappy:SetWindowBorder(pEnabled)
+    self.CurrentProfile.WindowBorder = pEnabled and true or nil
+    self:AdjustBackgroundStyle()
+end
+
 function Mappy:SetHideZoomButtons(pHide)
     self.CurrentProfile.HideZoomButtons = pHide and true or nil
 end
@@ -3436,6 +3582,16 @@ function Mappy._AppearancePanel:Construct(pParent)
 		MappyAlwaysShowGroupFinderCheckbuttonText:SetText("Except the Group Finder eye")
 	end
 
+    -- Forever-style border (Forever client)
+
+    if Mappy.IsForeverClient then
+        self.WindowBorderCheckbutton = CreateFrame("CheckButton", "MappyWindowBorderCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+        self.WindowBorderCheckbutton:SetPoint("TOPLEFT", self.AlwaysShowGroupFinderCheckbutton, "TOPLEFT", -30, -35)
+        self.WindowBorderCheckbutton:SetScript("OnClick", function (self) Mappy:SetWindowBorder(self:GetChecked()) end)
+        MappyWindowBorderCheckbuttonText:SetText("Forever-style border")
+        setCheckbuttonTooltip(self.WindowBorderCheckbutton, "The thicker border from the game's menu windows.\n\nHas no effect while \"Hide border\" (Buttons page) is ticked.")
+    end
+
     -- Show map icons at 0% alpha
 
     self.HideMinimapAtZeroAlphaCheckbutton = CreateFrame("CheckButton", "MappyHideMinimapAtZeroAlphaCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
@@ -3505,6 +3661,9 @@ function Mappy._AppearancePanel:OnShow()
 	if self.AlwaysShowGroupFinderCheckbutton then
 		self.AlwaysShowGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowGroupFinder)
 	end
+    if self.WindowBorderCheckbutton then
+        self.WindowBorderCheckbutton:SetChecked(Mappy.CurrentProfile.WindowBorder)
+    end
     self:UpdateDependentOptions()
     self.HideMinimapAtZeroAlphaCheckbutton:SetChecked(not Mappy.CurrentProfile.HideMinimapAtZeroAlpha)
     self.FadeBlobsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeBlobs)
