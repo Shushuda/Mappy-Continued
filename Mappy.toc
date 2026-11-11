@@ -2,7 +2,7 @@
 ## Notes: Minimap enhancements
 ## Title: Mappy Continued
 ## Author: John Stephen, LynchburgJack, Shushuda, wealdly, Little-Bunny-FuFu, Zuz666
-## Version: 5.2.0
+## Version: 5.3.0
 ## SavedVariables: gMappy_Settings
 ## OptionalDeps: GatherMate, GatherMate2, MBB, FarmHud, Immersion
 
