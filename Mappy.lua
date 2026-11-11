@@ -26,6 +26,7 @@ Mappy.StackingInfo = {}
 
 Mappy.CoordAnchorInfo = {}
 
+Mappy.FadeStart = nil
 Mappy.FadeTarget = nil
 Mappy.MinimapFaderAlpha = 1
 Mappy.ButtonFaderAlpha = 1
@@ -34,6 +35,8 @@ Mappy.IsHovering = false
 Mappy.ButtonHideDelay = 3
 Mappy.ButtonFadeDuration = 0.2
 Mappy.ButtonsHidden = false
+-- Frames whose mouse Mappy turned off at 0% alpha
+Mappy.ClickThroughFrames = {}
 
 -- Minimap view radius in yards at each zoom level while it draws outdoor map art
 -- Retail has an extra zoomed-out level
@@ -296,6 +299,20 @@ local function setCheckbuttonTooltip(pButton, pText)
     pButton:SetScript("OnLeave", GameTooltip_Hide)
 end
 
+-- Grey out the checkbox and its label when disabled
+local function setCheckbuttonEnabled(pButton, pEnabled)
+    pButton:SetEnabled(pEnabled)
+    pButton.Text:SetFontObject(pEnabled and "GameFontNormalSmall" or "GameFontDisableSmall")
+end
+
+-- Add the frame and every frame inside it, since each one takes the mouse on its own
+local function addFrameTree(pFrames, pFrame)
+    table.insert(pFrames, pFrame)
+    for _, vChild in ipairs({ pFrame:GetChildren() }) do
+        addFrameTree(pFrames, vChild)
+    end
+end
+
 --
 
 function Mappy:AddonLoaded(pEventID, pAddonName)
@@ -369,7 +386,7 @@ function Mappy:InitializeSettings()
                 CoordSize = 1,
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
-                HideMinimapAtZeroAlpha = false,
+                HideMinimapAtZeroAlpha = true,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = false,
@@ -758,6 +775,7 @@ function Mappy:ConfigureMinimapOptions()
     self:ApplyBlobAlpha()
 
     self:UpdateMinimapShown()
+    self:UpdateClickThrough()
 
 	self:AdjustBackgroundStyle()
 end
@@ -1958,7 +1976,7 @@ function Mappy:UpdateCoords()
     end
 end
 
--- Set the map, zone name and clock alpha, and update the buttons, quest areas and the hide
+-- Set the map, zone name and clock alpha, and update the buttons, quest areas, the hide and click-through
 function Mappy:ApplyMinimapAlpha(pAlpha)
     self.MinimapFaderAlpha = pAlpha
     Minimap:SetAlpha(pAlpha)
@@ -1969,6 +1987,7 @@ function Mappy:ApplyMinimapAlpha(pAlpha)
     self:SetButtonsAlpha()
     self:ApplyBlobAlpha()
     self:UpdateMinimapShown()
+    self:UpdateClickThrough()
 end
 
 -- Set the alpha of quest, world quest and dig site areas
@@ -2010,12 +2029,48 @@ function Mappy:UpdateMinimapShown()
     vContainer:SetShown(not vHide)
 end
 
+-- Let clicks through what Mappy faded out at 0% alpha
+function Mappy:UpdateClickThrough()
+    -- Turn the mouse back on first, so changed settings apply
+    for vFrame in pairs(self.ClickThroughFrames) do
+        -- Ghost mode keeps the map's spot click-through
+        vFrame:EnableMouse(vFrame ~= MinimapCluster or not self.CurrentProfile.GhostMinimap)
+    end
+    wipe(self.ClickThroughFrames)
+
+    if self.MinimapFaderAlpha ~= 0 then
+        return
+    end
+
+    -- MinimapCluster catches clicks at the map's spot once the map is hidden
+    local vFrames = { MinimapCluster }
+    addFrameTree(vFrames, MinimapCluster.ZoneTextButton)
+    if TimeManagerClockButton then
+        addFrameTree(vFrames, TimeManagerClockButton)
+    end
+    -- Buttons shown only on mouseover count 0% as 100%, so they don't fade out with the map
+    if self.CurrentProfile.FadeButtons and not self.CurrentProfile.AutoHideButtons then
+        for _, vButton in ipairs(self.MinimapButtons) do
+            addFrameTree(vFrames, vButton)
+        end
+    end
+
+    for _, vFrame in ipairs(vFrames) do
+        -- Skip protected frames, combat would block it
+        if vFrame:IsMouseEnabled() and not vFrame:IsProtected() then
+            vFrame:EnableMouse(false)
+            self.ClickThroughFrames[vFrame] = true
+        end
+    end
+end
+
 function Mappy:FadeAlphaTo(pTargetAlpha)
     -- Already there or on the way
     if self.FadeTarget == pTargetAlpha then
         return
     end
 
+    self.FadeStart = self.MinimapFaderAlpha
     self.FadeTarget = pTargetAlpha
 
     local vFadeInfo = {}
@@ -2298,12 +2353,10 @@ end
 function Mappy:SetAddonPosition(pEnable)
     if pEnable then
         self.CurrentProfile.UseAddonPosition = true
-        MappyLockPositionCheckbuttonText:SetFontObject("GameFontNormalSmall")
     else
         self.CurrentProfile.UseAddonPosition = nil
-        MappyLockPositionCheckbuttonText:SetFontObject("GameFontDisableSmall")
     end
-    MappyLockPositionCheckbutton:SetEnabled(pEnable)
+    self.OptionsPanel:UpdateDependentOptions()
 
     -- restore correct positions
     self:LoadProfile(self.CurrentProfile)
@@ -2377,6 +2430,7 @@ function Mappy:SetFadeButtons(pValue)
 
 	self.CurrentProfile.FadeButtons = pValue
     self:SetButtonsAlpha()
+    self:UpdateClickThrough()
 end
 
 function Mappy:SetFadeBlobs(pValue)
@@ -2398,6 +2452,9 @@ function Mappy:SetAutoHideButtons(pValue)
 
 	self.CurrentProfile.AutoHideButtons = pValue
 	self:UpdateButtonAutoHide()
+    self:SetButtonsAlpha()
+    self:UpdateClickThrough()
+    self.AppearancePanel:UpdateDependentOptions()
 end
 
 function Mappy:SetStackGroupFinder(pEnable)
@@ -2468,9 +2525,36 @@ function Mappy:FadeButtonsTo(pTargetAlpha)
 	UIFrameFade(self.ButtonFader, vFadeInfo)
 end
 
+-- Minimap alpha for buttons shown only on mouseover
+-- 0% counts as 100% so hovering still reveals them, and fades into or out of 0% smoothly
+function Mappy:GetMouseoverButtonsAlpha()
+    local vAlpha = self.MinimapFaderAlpha
+    local vStart = self.FadeStart
+    local vEnd = self.FadeTarget
+
+    -- Not fading
+    if not vStart or not vEnd or vStart == vEnd then
+        return vAlpha == 0 and 1 or vAlpha
+    end
+
+    -- Same progress as the map's fade, with 0% swapped for 100% at both ends
+    local vProgress = (vAlpha - vStart) / (vEnd - vStart)
+    local vButtonStart = vStart == 0 and 1 or vStart
+    local vButtonEnd = vEnd == 0 and 1 or vEnd
+    return vButtonStart + (vButtonEnd - vButtonStart) * vProgress
+end
+
 function Mappy:SetButtonsAlpha()
     -- Buttons follow the minimap alpha unless they ignore the sliders
-    local vMinimapAlpha = self.CurrentProfile.FadeButtons and self.MinimapFaderAlpha or 1
+    local vMinimapAlpha = 1
+    if self.CurrentProfile.FadeButtons then
+        if self.CurrentProfile.AutoHideButtons then
+            vMinimapAlpha = self:GetMouseoverButtonsAlpha()
+        else
+            vMinimapAlpha = self.MinimapFaderAlpha
+        end
+    end
+
     for _, vButton in ipairs(self.MinimapButtons) do
         -- Keep the Group Finder eye visible if enabled (Forever client)
         if vButton == QueueStatusButton and self.CurrentProfile.AlwaysShowGroupFinder then
@@ -3085,21 +3169,6 @@ function Mappy._OptionsPanel:OnShow()
 	self.FlashGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.FlashGatherNodes)
 	self.SmallGatherNodesCheckbutton:SetChecked(not Mappy.CurrentProfile.NormalGatherNodes)
     self.OldGatherNodesCheckbutton:SetChecked(Mappy.CurrentProfile.OldGatherNodes)
-	-- 12.0.7: Blizzard removed Minimap:SetBlipTexture() from API
-	self.FlashGatherNodesCheckbutton:SetEnabled(Mappy.enableBlips)
-	self.SmallGatherNodesCheckbutton:SetEnabled(Mappy.enableBlips)
-	self.OldGatherNodesCheckbutton:SetEnabled(Mappy.enableBlips)
-
-	if Mappy.enableBlips then
-		MappyFlashGatherNodesCheckbuttonText:SetFontObject("GameFontNormalSmall")
-		MappySmallGatherNodesCheckbuttonText:SetFontObject("GameFontNormalSmall")
-		MappyOldGatherNodesCheckbuttonText:SetFontObject("GameFontNormalSmall")
-	else
-		MappyFlashGatherNodesCheckbuttonText:SetFontObject("GameFontDisableSmall")
-		MappySmallGatherNodesCheckbuttonText:SetFontObject("GameFontDisableSmall")
-		MappyOldGatherNodesCheckbuttonText:SetFontObject("GameFontDisableSmall")
-	end
-
     self.AddonPositionCheckbutton:SetChecked(Mappy.CurrentProfile.UseAddonPosition)
     self.LockPositionCheckbutton:SetChecked(Mappy.CurrentProfile.LockPosition)
 	self.GhostCheckbutton:SetChecked(Mappy.CurrentProfile.GhostMinimap)
@@ -3110,15 +3179,20 @@ function Mappy._OptionsPanel:OnShow()
     self.CoordBottomRightCheckbutton:SetChecked(Mappy.CurrentProfile.CoordAnchor == "BOTTOMRIGHT")
     self.CoordSizeSlider:SetValue(Mappy.CurrentProfile.CoordSize or 1)
 
-    self.LockPositionCheckbutton:SetEnabled(Mappy.CurrentProfile.UseAddonPosition)
-
-    if self.LockPositionCheckbutton:IsEnabled() then
-        MappyLockPositionCheckbuttonText:SetFontObject("GameFontNormalSmall")
-    else
-        MappyLockPositionCheckbuttonText:SetFontObject("GameFontDisableSmall")
-    end
+    self:UpdateDependentOptions()
 
 	Mappy.DisableUpdates = false
+end
+
+-- Grey out options that depend on other options or the client
+function Mappy._OptionsPanel:UpdateDependentOptions()
+    -- 12.0.7: Blizzard removed Minimap:SetBlipTexture() from API
+    setCheckbuttonEnabled(self.FlashGatherNodesCheckbutton, Mappy.enableBlips)
+    setCheckbuttonEnabled(self.SmallGatherNodesCheckbutton, Mappy.enableBlips)
+    setCheckbuttonEnabled(self.OldGatherNodesCheckbutton, Mappy.enableBlips)
+
+    -- Lock position only applies to addon positioning
+    setCheckbuttonEnabled(self.LockPositionCheckbutton, Mappy.CurrentProfile.UseAddonPosition)
 end
 
 function Mappy._OptionsPanel:OnHide()
@@ -3289,6 +3363,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 	self.AutoHideButtonsCheckbutton:SetPoint("TOPLEFT", self.FadeButtonsCheckbutton, "TOPLEFT", 0, -25)
 	self.AutoHideButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoHideButtons(self:GetChecked()) end)
 	MappyAutoHideButtonsCheckbuttonText:SetText("Show buttons ONLY on mouseover")
+    setCheckbuttonTooltip(self.AutoHideButtonsCheckbutton, "Ticked - buttons hide a few seconds after the mouse leaves the minimap and show again on mouseover (at 100% when the minimap alpha is 0%, and at minimap alpha otherwise).\n\nUnticked - buttons don't hide on their own.")
 
     -- Mail icon always visible
 
@@ -3306,13 +3381,13 @@ function Mappy._AppearancePanel:Construct(pParent)
 		MappyAlwaysShowGroupFinderCheckbuttonText:SetText("Except the Group Finder eye")
 	end
 
-    -- Hide map icons at 0% alpha
+    -- Show map icons at 0% alpha
 
     self.HideMinimapAtZeroAlphaCheckbutton = CreateFrame("CheckButton", "MappyHideMinimapAtZeroAlphaCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
     self.HideMinimapAtZeroAlphaCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
-    self.HideMinimapAtZeroAlphaCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideMinimapAtZeroAlpha(self:GetChecked()) end)
-    MappyHideMinimapAtZeroAlphaCheckbuttonText:SetText("Hide map icons at 0% alpha")
-    setCheckbuttonTooltip(self.HideMinimapAtZeroAlphaCheckbutton, "Ticked - the minimap is hidden completely at 0% alpha (nodes, arrows, quest areas included) and clicks pass through.\n\nUnticked - the icons stay visible at full opacity.")
+    self.HideMinimapAtZeroAlphaCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideMinimapAtZeroAlpha(not self:GetChecked()) end)
+    MappyHideMinimapAtZeroAlphaCheckbuttonText:SetText("Show map icons at 0% alpha")
+    setCheckbuttonTooltip(self.HideMinimapAtZeroAlphaCheckbutton, "Ticked - map icons (nodes, arrows, quest areas) stay visible at 0% alpha, like a sonar.\n\nUnticked - the minimap is hidden completely at 0% alpha and clicks pass through.")
 
     -- Quest areas ignore alpha
 
@@ -3374,7 +3449,8 @@ function Mappy._AppearancePanel:OnShow()
 	if self.AlwaysShowGroupFinderCheckbutton then
 		self.AlwaysShowGroupFinderCheckbutton:SetChecked(Mappy.CurrentProfile.AlwaysShowGroupFinder)
 	end
-    self.HideMinimapAtZeroAlphaCheckbutton:SetChecked(Mappy.CurrentProfile.HideMinimapAtZeroAlpha)
+    self:UpdateDependentOptions()
+    self.HideMinimapAtZeroAlphaCheckbutton:SetChecked(not Mappy.CurrentProfile.HideMinimapAtZeroAlpha)
     self.FadeBlobsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeBlobs)
 	self.HideQuestRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideQuestRing)
 	if self.HideTaskRingCheckbutton then
@@ -3385,6 +3461,15 @@ function Mappy._AppearancePanel:OnShow()
 	end
 
 	Mappy.DisableUpdates = false
+end
+
+-- Grey out options that depend on other options
+function Mappy._AppearancePanel:UpdateDependentOptions()
+    -- The exceptions only matter while buttons show only on mouseover
+    setCheckbuttonEnabled(self.AlwaysShowMailCheckbutton, Mappy.CurrentProfile.AutoHideButtons)
+    if self.AlwaysShowGroupFinderCheckbutton then
+        setCheckbuttonEnabled(self.AlwaysShowGroupFinderCheckbutton, Mappy.CurrentProfile.AutoHideButtons)
+    end
 end
 
 function Mappy._AppearancePanel:OnHide()
