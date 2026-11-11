@@ -14,6 +14,7 @@ Mappy-Continued is a minimap addon focused on changing the minimap shape into a 
 
 Other features include:
 * Custom square textures (handmade in Photopea :D )
+* Border in the game's tooltip style, with a thicker Forever-style option on WoW Forever
 * Resizing of the minimap
 * Option to move the minimap via Edit Mode only
 * Option to move the minimap via addon settings only
