@@ -1350,8 +1350,9 @@ end
 
 function Mappy:ExecuteCommand(pCommand)
 	local	vStartIndex, vEndIndex, vCommand, vParameter = string.find(pCommand, "(%w+) ?(.*)")
+	vCommand = vCommand and vCommand:lower()
 	
-	if not vCommand then
+	if not vCommand or vCommand == "config" or vCommand == "options" or vCommand == "settings" then
         if Mappy.SettingsCategory then
             -- Opening settings is restricted in combat
             if InCombatLockdown() then
@@ -1362,8 +1363,6 @@ function Mappy:ExecuteCommand(pCommand)
         end
 		return
 	end
-	
-	vCommand = vCommand:lower()
 	
 	if self[vCommand] then
 		self[vCommand](self, vParameter)
@@ -1394,6 +1393,8 @@ function Mappy:ExecuteCommand(pCommand)
 end
 
 function Mappy:help()
+	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy"..NORMAL_FONT_COLOR_CODE..": Opens settings")
+	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy config"..NORMAL_FONT_COLOR_CODE..": Opens settings")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy help"..NORMAL_FONT_COLOR_CODE..": Shows this list")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy default"..NORMAL_FONT_COLOR_CODE..": Loads the default profile")
 	self:NoteMessage(HIGHLIGHT_FONT_COLOR_CODE.."/mappy save settingsname"..NORMAL_FONT_COLOR_CODE..": Saves the settings under the name settingsname")
