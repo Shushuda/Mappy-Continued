@@ -305,6 +305,15 @@ local function setCheckbuttonEnabled(pButton, pEnabled)
     pButton.Text:SetFontObject(pEnabled and "GameFontNormalSmall" or "GameFontDisableSmall")
 end
 
+-- Grey out the slider and its labels when disabled
+local function setSliderEnabled(pSlider, pEnabled)
+    -- The slider's SetEnabled has no default for nil
+    pSlider:SetEnabled(pEnabled and true or false)
+    pSlider.Text:SetFontObject(pEnabled and "GameFontHighlight" or "GameFontDisable")
+    pSlider.Low:SetFontObject(pEnabled and "GameFontHighlightSmall" or "GameFontDisableSmall")
+    pSlider.High:SetFontObject(pEnabled and "GameFontHighlightSmall" or "GameFontDisableSmall")
+end
+
 -- Add the frame and every frame inside it, since each one takes the mouse on its own
 local function addFrameTree(pFrames, pFrame)
     table.insert(pFrames, pFrame)
@@ -364,6 +373,7 @@ function Mappy:InitializeSettings()
 				MinimapAlpha = 1,
 				MinimapCombatAlpha = 0.2,
 				MinimapMovingAlpha = 0.2,
+                MinimapHoverAlpha = 1,
 
 				Point = "TOPRIGHT",
 				RelativePoint = "TOPRIGHT",
@@ -378,6 +388,7 @@ function Mappy:InitializeSettings()
 				HideBorder = false,
 				HideTracking = false,
                 HideAddonCompartment = false,
+                HideZoomButtons = false,
 				HideTimeManagerClock = false,
 				HideDiel = false,
 				FlashGatherNodes = false,
@@ -403,6 +414,7 @@ function Mappy:InitializeSettings()
 				MinimapAlpha = 0,
 				MinimapCombatAlpha = 0,
 				MinimapMovingAlpha = 0,
+                MinimapHoverAlpha = 1,
 
 				Point = "CENTER",
 				RelativePoint = "CENTER",
@@ -417,6 +429,7 @@ function Mappy:InitializeSettings()
 				HideBorder = true,
 				HideTracking = false,
                 HideAddonCompartment = false,
+                HideZoomButtons = false,
 				HideTimeManagerClock = false,
 				HideDiel = false,
 				FlashGatherNodes = true,
@@ -1528,6 +1541,16 @@ function Mappy:SetMinimapHoverOpaque(pValue)
 	end
 
 	self.CurrentProfile.MinimapHoverOpaque = pValue
+    self.AppearancePanel:UpdateDependentOptions()
+end
+
+function Mappy:SetMinimapHoverAlpha(pAlpha)
+    if self.DisableUpdates then
+        return
+    end
+
+    self.CurrentProfile.MinimapHoverAlpha = pAlpha
+    self:AdjustAlpha(pAlpha)
 end
 
 function Mappy:SetMinimapSize(pSize)
@@ -2112,16 +2135,17 @@ function Mappy:AdjustAlpha(pForceAlpha)
 			vAlpha = self.CurrentProfile.MinimapAlpha or 1
 		end
 
+		-- Mouseover alpha
+		if self.IsHovering and self.CurrentProfile.MinimapHoverOpaque then
+			vAlpha = self.CurrentProfile.MinimapHoverAlpha or 1
+		end
+
         -- Force the alpha to 1 if we're indoors. The minimap doesn't work
         -- properly if the alpha isn't 1 (it'll just show solid black) while
         -- it draws indoor map art, as in buildings, some cities, dungeons.
 
 		local forceToOpaque = self:ShouldForceMapToOpaque()
 		if vAlpha > 0 and forceToOpaque then
-			vAlpha = 1
-		end
-
-		if self.IsHovering and self.CurrentProfile.MinimapHoverOpaque and vAlpha < 1 then
 			vAlpha = 1
 		end
 
@@ -2177,6 +2201,12 @@ function Mappy:MinimapOnEnter()
 	self.IsHovering = true
 	self:AdjustAlpha()
 	self:UpdateButtonAutoHide()
+
+    -- Blizzard shows the zoom buttons right before this
+    if self.CurrentProfile.HideZoomButtons then
+        Minimap.ZoomIn:Hide()
+        Minimap.ZoomOut:Hide()
+    end
 end
 
 function Mappy:MinimapOnLeave()
@@ -2373,6 +2403,10 @@ end
 function Mappy:SetHideBorder(pHide)
 	self.CurrentProfile.HideBorder = pHide and true or nil
 	self:AdjustBackgroundStyle()
+end
+
+function Mappy:SetHideZoomButtons(pHide)
+    self.CurrentProfile.HideZoomButtons = pHide and true or nil
 end
 
 function Mappy:SetHideQuestRing(pHide)
@@ -3330,12 +3364,40 @@ function Mappy._AppearancePanel:Construct(pParent)
         MappyMovingAlphaSliderText:SetText(string.format("Movement Alpha - %.0f%%", vSize * 100))
     end)
 
+    -- Mouseover alpha slider
+
+    self.HoverAlphaSlider = CreateFrame("Slider", "MappyHoverAlphaSlider", self, "OptionsSliderTemplate")
+    self.HoverAlphaSlider:SetWidth(180)
+    self.HoverAlphaSlider:SetPoint("TOPLEFT", self.AlphaSlider, "BOTTOMLEFT", 0, -35)
+    MappyHoverAlphaSliderLow:SetText("0%")
+    MappyHoverAlphaSliderHigh:SetText("100%")
+    -- stepping
+    self.HoverAlphaSlider:SetMinMaxValues(0, 1)
+    self.HoverAlphaSlider:SetValueStep(0.01)
+    self.HoverAlphaSlider:SetObeyStepOnDrag(true)
+    self.HoverAlphaSlider:SetStepsPerPage(1)
+    -- initial value
+    MappyHoverAlphaSliderText:SetText(string.format("Mouseover Alpha - %.0f%%", (Mappy.CurrentProfile.MinimapHoverAlpha or 1) * 100))
+    -- action
+    self.HoverAlphaSlider:SetScript("OnValueChanged", function (self, value)
+        local vSize = tonumber(string.format("%.2f", value))
+        Mappy:SetMinimapHoverAlpha(vSize)
+        MappyHoverAlphaSliderText:SetText(string.format("Mouseover Alpha - %.0f%%", vSize * 100))
+    end)
+
+    -- Mouseover alpha toggle
+
+    self.HoverOpaqueCheckbutton = CreateFrame("CheckButton", "MappyHoverOpaqueCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.HoverOpaqueCheckbutton:SetPoint("LEFT", self.HoverAlphaSlider, "RIGHT", 20, 0)
+    self.HoverOpaqueCheckbutton:SetScript("OnClick", function (self) Mappy:SetMinimapHoverOpaque(self:GetChecked()) end)
+    MappyHoverOpaqueCheckbuttonText:SetText("Change alpha on mouseover")
+
     --------------------------------
     -- options header
     --------------------------------
     self.OptionsLine = self:CreateLine()
-    self.OptionsLine:SetStartPoint("TOPLEFT", self, 10, -250)
-    self.OptionsLine:SetEndPoint("TOPRIGHT", self, -20, -250)
+    self.OptionsLine:SetStartPoint("TOPLEFT", self, 10, -305)
+    self.OptionsLine:SetEndPoint("TOPRIGHT", self, -20, -305)
     self.OptionsLine:SetColorTexture(1,1,1,0.25)
     self.OptionsLine:SetThickness(2)
 
@@ -3343,17 +3405,10 @@ function Mappy._AppearancePanel:Construct(pParent)
     self.OptionsHeader:SetPoint("TOPLEFT", self.OptionsLine, 5, 13)
     self.OptionsHeader:SetText("Options")
 
-	-- Mouseover alpha toggle
-
-	self.HoverOpaqueCheckbutton = CreateFrame("CheckButton", "MappyHoverOpaqueCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.HoverOpaqueCheckbutton:SetPoint("TOPLEFT", self.OptionsLine, "BOTTOMLEFT", 10, -15)
-	self.HoverOpaqueCheckbutton:SetScript("OnClick", function (self) Mappy:SetMinimapHoverOpaque(self:GetChecked()) end)
-	MappyHoverOpaqueCheckbuttonText:SetText("100% alpha on mouseover")
-
 	-- Alpha ignore
 
 	self.FadeButtonsCheckbutton = CreateFrame("CheckButton", "MappyFadeButtonsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-	self.FadeButtonsCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 0, -25)
+	self.FadeButtonsCheckbutton:SetPoint("TOPLEFT", self.OptionsLine, "BOTTOMLEFT", 10, -15)
 	self.FadeButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeButtons(not self:GetChecked()) end)
 	MappyFadeButtonsCheckbuttonText:SetText("Buttons ignore minimap alpha sliders")
 
@@ -3363,7 +3418,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 	self.AutoHideButtonsCheckbutton:SetPoint("TOPLEFT", self.FadeButtonsCheckbutton, "TOPLEFT", 0, -25)
 	self.AutoHideButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetAutoHideButtons(self:GetChecked()) end)
 	MappyAutoHideButtonsCheckbuttonText:SetText("Show buttons ONLY on mouseover")
-    setCheckbuttonTooltip(self.AutoHideButtonsCheckbutton, "Ticked - buttons hide a few seconds after the mouse leaves the minimap and show again on mouseover (at 100% when the minimap alpha is 0%, and at minimap alpha otherwise).\n\nUnticked - buttons don't hide on their own.")
+    setCheckbuttonTooltip(self.AutoHideButtonsCheckbutton, "Buttons hide a few seconds after the mouse leaves the minimap and show again on mouseover (at 100% when the minimap alpha is 0%, and at minimap alpha otherwise).")
 
     -- Mail icon always visible
 
@@ -3384,7 +3439,7 @@ function Mappy._AppearancePanel:Construct(pParent)
     -- Show map icons at 0% alpha
 
     self.HideMinimapAtZeroAlphaCheckbutton = CreateFrame("CheckButton", "MappyHideMinimapAtZeroAlphaCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-    self.HideMinimapAtZeroAlphaCheckbutton:SetPoint("TOPLEFT", self.HoverOpaqueCheckbutton, "TOPLEFT", 340, 0)
+    self.HideMinimapAtZeroAlphaCheckbutton:SetPoint("TOPLEFT", self.OptionsLine, "BOTTOMLEFT", 350, -15)
     self.HideMinimapAtZeroAlphaCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideMinimapAtZeroAlpha(not self:GetChecked()) end)
     MappyHideMinimapAtZeroAlphaCheckbuttonText:SetText("Show map icons at 0% alpha")
     setCheckbuttonTooltip(self.HideMinimapAtZeroAlphaCheckbutton, "Ticked - map icons (nodes, arrows, quest areas) stay visible at 0% alpha, like a sonar.\n\nUnticked - the minimap is hidden completely at 0% alpha and clicks pass through.")
@@ -3442,6 +3497,7 @@ function Mappy._AppearancePanel:OnShow()
 	self.AlphaSlider:SetValue(Mappy.CurrentProfile.MinimapAlpha or 1)
 	self.CombatAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapCombatAlpha or 0.2)
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
+    self.HoverAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapHoverAlpha or 1)
 	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
 	self.AutoHideButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.AutoHideButtons)
@@ -3465,6 +3521,9 @@ end
 
 -- Grey out options that depend on other options
 function Mappy._AppearancePanel:UpdateDependentOptions()
+    -- Mouseover alpha only applies while it's turned on
+    setSliderEnabled(self.HoverAlphaSlider, Mappy.CurrentProfile.MinimapHoverOpaque)
+
     -- The exceptions only matter while buttons show only on mouseover
     setCheckbuttonEnabled(self.AlwaysShowMailCheckbutton, Mappy.CurrentProfile.AutoHideButtons)
     if self.AlwaysShowGroupFinderCheckbutton then
@@ -3544,14 +3603,12 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
 	self.HideTimeManagerClockCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideTimeManagerClock(self:GetChecked()) end)
 	MappyHideTimeManagerClockCheckbuttonText:SetText("Hide clock")
 
-	-- Hide day/night icon (Forever client)
+    -- Hide zoom buttons
 
-	if MinimapCluster.DielFrame then
-		self.HideDielCheckbutton = CreateFrame("CheckButton", "MappyHideDielCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-		self.HideDielCheckbutton:SetPoint("TOPLEFT", self.HideTimeManagerClockCheckbutton, "TOPLEFT", 0, -25)
-		self.HideDielCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideDiel(self:GetChecked()) end)
-		MappyHideDielCheckbuttonText:SetText("Hide day/night icon")
-	end
+    self.HideZoomButtonsCheckbutton = CreateFrame("CheckButton", "MappyHideZoomButtonsCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.HideZoomButtonsCheckbutton:SetPoint("TOPLEFT", self.HideTimeManagerClockCheckbutton, "TOPLEFT", 0, -25)
+    self.HideZoomButtonsCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideZoomButtons(self:GetChecked()) end)
+    MappyHideZoomButtonsCheckbuttonText:SetText("Hide zoom buttons")
 
 	-- Hide calendar
 
@@ -3573,6 +3630,15 @@ function Mappy._ButtonOptionsPanel:Construct(pParent)
     self.HideAddonCompartmentCheckbutton:SetPoint("TOPLEFT", self.HideMiniMapTrackingCheckbutton, "TOPLEFT", 0, -25)
     self.HideAddonCompartmentCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideAddonCompartment(self:GetChecked()) end)
     MappyHideAddonCompartmentCheckbuttonText:SetText("Hide Addon Compartment button")
+
+	-- Hide day/night icon (Forever client)
+
+	if MinimapCluster.DielFrame then
+		self.HideDielCheckbutton = CreateFrame("CheckButton", "MappyHideDielCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+		self.HideDielCheckbutton:SetPoint("TOPLEFT", self.HideAddonCompartmentCheckbutton, "TOPLEFT", 0, -25)
+		self.HideDielCheckbutton:SetScript("OnClick", function (self) Mappy:SetHideDiel(self:GetChecked()) end)
+		MappyHideDielCheckbuttonText:SetText("Hide day/night icon")
+	end
 
     --------------------------------
     -- stacking header
@@ -3654,6 +3720,7 @@ function Mappy._ButtonOptionsPanel:OnShow()
 		self.HideDielCheckbutton:SetChecked(Mappy.CurrentProfile.HideDiel)
 	end
     self.HideAddonCompartmentCheckbutton:SetChecked(Mappy.CurrentProfile.HideAddonCompartment)
+    self.HideZoomButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.HideZoomButtons)
 	self.AutoStackCheckbutton:SetChecked(Mappy.CurrentProfile.AutoArrangeButtons)
 	self.TopLeftCheckbutton:SetChecked(Mappy.CurrentProfile.StartingCorner == "TOPLEFT")
 	self.TopRightCheckbutton:SetChecked(not Mappy.CurrentProfile.StartingCorner or Mappy.CurrentProfile.StartingCorner == "TOPRIGHT")
