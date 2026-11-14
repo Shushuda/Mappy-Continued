@@ -6,33 +6,34 @@ Compatible with Midnight and Forever!
 
 Since the original addon seems pretty much abandoned, I've decided to fork and maintain it. I love this addon too much to find a new one, so I've fixed it instead!
 
-I used to say I don't plan on adding new features, but I already added a lot so that no longer stands lol. I still prefer to maintain the currently implemented features with as little modifications of the original codebase as possible, but if you have cool ideas for anything new - ask away! It's still going to be a case-by-case thing though.
+I used to say I don't plan on adding new features, but I already added a lot so that no longer stands lol. I still prefer to maintain the current codebase as rewrites take a lot of time, but if you have cool ideas for anything new - ask away! It's still going to be a case-by-case thing though.
 
 ## Features
 
-Mappy-Continued is a minimap addon focused on changing the minimap shape into a sleek square.
+Mappy-Continued is a minimap addon focused on changing the minimap shape into a sleek square. Extra care was put into making it OLED friendly.
 
-Other features include:
-* Custom square textures (handmade in Photopea :D )
+**Other features include:**
+
+* Custom square textures (handmade in Photopea)
 * Border in the game's tooltip style, with a thicker Forever-style option on WoW Forever
 * Resizing of the minimap
-* Option to move the minimap via Edit Mode only
-* Option to move the minimap via addon settings only
+* Option to move the minimap via Edit Mode only OR via addon settings only
 * Automatic stacking of minimap buttons along the minimap OR screen
 * Option to show minimap buttons only on mouseover
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
 * Zooming in and out with the mouse wheel
 * Alpha settings, separate for combat, movement, mouseover and default state
-* Option to show map icons when the minimap is at 0% alpha
+* Alpha working while indoors/instanced/in cities, with automatic 100% override that ensures the map is always rendered correctly
+* Optional OLED care features (dimming overlay when indoors; fading when idle indoors)
+* Optional fading of quest/WQ/archaeology areas with the minimap alpha
 * Option to hide the quest/WQ/archaeology edge pattern
-* Option to fade quest/WQ/archaeology areas with the minimap alpha
+* Player coordinates
 * Profiles (including being able to set a profile for mounting, dungeon etc)
-* Gathering overlay support for GatherMate
+* Gathering overlay support for GatherMate2 and other addons that create their own pins
 * Compatibility with MinimapButtonBag Reborn
 * Compatibility with FarmHud
-* ~~Bigger and/or blinking gathering nodes~~ - **Broken since 12.0.7, working on a workaround**
-* ~~Classic-style dot for gathering nodes~~ - **Broken since 12.0.7, working on a workaround**
-* Player coordinates
+* ~~Bigger and/or blinking gathering nodes~~ - **Broken since 12.0.7, Blizz hates this apparently**
+* ~~Classic-style dot for gathering nodes~~ - **Broken since 12.0.7, Blizz hates this apparently**
 
 ## Slash commands
 

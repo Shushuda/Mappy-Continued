@@ -31,6 +31,11 @@ Mappy.FadeTarget = nil
 Mappy.MinimapFaderAlpha = 1
 Mappy.ButtonFaderAlpha = 1
 Mappy.FadeDuration = 0.25
+Mappy.IndoorFaderAlpha = 1
+Mappy.IndoorFadeTarget = nil
+Mappy.IndoorFadeDuration = 1
+Mappy.IndoorFadeDelay = 3
+Mappy.IndoorIdle = false
 Mappy.IsHovering = false
 Mappy.ButtonHideDelay = 3
 Mappy.ButtonFadeDuration = 0.2
@@ -433,6 +438,7 @@ function Mappy:InitializeSettings()
 				MinimapCombatAlpha = 0.2,
 				MinimapMovingAlpha = 0.2,
                 MinimapHoverAlpha = 1,
+                IndoorFadeDelay = 3,
 
 				Point = "TOPRIGHT",
 				RelativePoint = "TOPRIGHT",
@@ -458,6 +464,8 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 HideMinimapAtZeroAlpha = true,
+                DimIndoorMap = false,
+                FadeIndoorMap = true,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = false,
@@ -475,6 +483,7 @@ function Mappy:InitializeSettings()
 				MinimapCombatAlpha = 0,
 				MinimapMovingAlpha = 0,
                 MinimapHoverAlpha = 1,
+                IndoorFadeDelay = 3,
 
 				Point = "CENTER",
 				RelativePoint = "CENTER",
@@ -500,6 +509,8 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 HideMinimapAtZeroAlpha = false,
+                DimIndoorMap = false,
+                FadeIndoorMap = false,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = true,
@@ -562,7 +573,11 @@ function Mappy:InitializeMinimap()
 	-- Register for events
 	self.EventLib:RegisterEvent("ZONE_CHANGED", self.ZoneChanged, self)
 	self.EventLib:RegisterEvent("ZONE_CHANGED_INDOORS", self.ZoneChanged, self)
-    self.EventLib:RegisterEvent("MINIMAP_UPDATE_ZOOM", self.ZoneChanged, self)
+
+    -- Things that may redraw the map
+    self.EventLib:RegisterEvent("MINIMAP_UPDATE_ZOOM", self.ResetIndoorIdle, self)
+    self.EventLib:RegisterEvent("NEW_WMO_CHUNK", self.ResetIndoorIdle, self)
+    self.EventLib:RegisterEvent("PLAYER_ENTERING_WORLD", self.ResetIndoorIdle, self)
 
 	self.EventLib:RegisterEvent("PLAYER_ENTERING_WORLD", self.RegenEnabled, self)
 	self.EventLib:RegisterEvent("PLAYER_REGEN_ENABLED", self.RegenEnabled, self)
@@ -580,6 +595,13 @@ function Mappy:InitializeMinimap()
     self.MinimapFader = CreateFrame("Frame")
     hooksecurefunc(self.MinimapFader, "SetAlpha", function(_, pAlpha) Mappy:ApplyMinimapAlpha(pAlpha) end)
 
+    -- Indoor 100% override for the map frame, faded like the minimap alpha
+    self.IndoorFader = CreateFrame("Frame")
+    hooksecurefunc(self.IndoorFader, "SetAlpha", function(_, pAlpha)
+        Mappy.IndoorFaderAlpha = pAlpha
+        Mappy:ApplyMapFrameAlpha()
+    end)
+
 	-- Button mouseover fade workaround
 	self.ButtonFader = CreateFrame("Frame")
     hooksecurefunc(self.ButtonFader, "SetAlpha", function(_, pAlpha)
@@ -587,6 +609,7 @@ function Mappy:InitializeMinimap()
         Mappy:SetButtonsAlpha()
     end)
 	self:UpdateButtonAutoHide()
+    self:ScheduleIndoorIdle()
 
     local vDBIcon = LibStub("LibDBIcon-1.0", true)
     if vDBIcon then
@@ -624,13 +647,16 @@ function Mappy:InitializeMinimap()
             if not Mappy:IsMinimapInFarmHud() then
                 Mappy:StopMinimapRotation()
                 Mappy:ApplyMinimapAlpha(Mappy.MinimapFaderAlpha)
+                -- Moving the map back may redraw it
+                Mappy:ResetIndoorIdle()
             end
         end)
 
-        -- Put quest areas back to their defaults while the minimap is in the HUD
-        -- and show FarmHud's stand-in at the map's spot
+        -- Put quest areas back to their defaults while the minimap is in the HUD,
+        -- drop the indoor override and dark layer, and show FarmHud's stand-in at the map's spot
         FarmHud:HookScript("OnShow", function()
-            Mappy:ApplyBlobAlpha()
+            Mappy:UpdateIndoorOverride()
+            Mappy:ApplyMapFrameAlpha()
             Mappy:UpdateMinimapShown()
         end)
 
@@ -1176,6 +1202,15 @@ function Mappy:InitializeSquareShape()
     Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
     Minimap.ZoomIn:SetFrameLevel(self.TooltipBorder:GetFrameLevel() + 1)
     Minimap.ZoomOut:SetFrameLevel(self.TooltipBorder:GetFrameLevel() + 1)
+
+    -- Dark layer for "Dim the map indoors": above the map and its icons, below the border
+    self.MapDimmer = CreateFrame("Frame", nil, Minimap)
+    self.MapDimmer:SetAllPoints()
+    self.MapDimmer:SetFrameLevel(Minimap:GetFrameLevel() + 1)
+    self.MapDimmer.Texture = self.MapDimmer:CreateTexture(nil, "BACKGROUND")
+    self.MapDimmer.Texture:SetAllPoints()
+    self.MapDimmer.Texture:SetColorTexture(0, 0, 0)
+    self.MapDimmer:Hide()
 end
 
 -- Stop minimap rotation
@@ -1324,6 +1359,7 @@ function Mappy:LoadProfile(pProfile)
 	
 	self.CurrentProfile = pProfile
 	self:UpdateButtonAutoHide()
+    self:ScheduleIndoorIdle()
 
 	if vProfileChanged then
 		if self.OptionsPanel:IsVisible() then
@@ -1797,6 +1833,8 @@ function Mappy:ConfigureMinimap()
 
     self:StackMinimapButtons()
     self:AdjustAlpha()
+    -- Profiles can differ in options that don't change the alpha (dark layer, quest areas)
+    self:ApplyMapFrameAlpha()
 end
 
 -- IsVisible(), but counts the map as shown while it's hidden at 0% alpha
@@ -2123,7 +2161,7 @@ function Mappy:Update()
 
     if self.wasMinimapIndoors ~= vMinimapIndoors then
         self.wasMinimapIndoors = vMinimapIndoors
-        self:AdjustAlpha()
+        self:ResetIndoorIdle()
     end
 
 	local	vResting = IsResting()
@@ -2163,18 +2201,52 @@ function Mappy:UpdateCoords()
     end
 end
 
--- Set the map, zone name and clock alpha, and update the buttons, quest areas, the hide and click-through
+-- Set the zone name and clock alpha, and update the map frame, buttons, the hide and click-through
 function Mappy:ApplyMinimapAlpha(pAlpha)
     self.MinimapFaderAlpha = pAlpha
-    Minimap:SetAlpha(pAlpha)
+    self:ApplyMapFrameAlpha()
     MinimapCluster.ZoneTextButton:SetAlpha(pAlpha)
     if TimeManagerClockButton then
         TimeManagerClockButton:SetAlpha(pAlpha)
     end
     self:SetButtonsAlpha()
-    self:ApplyBlobAlpha()
     self:UpdateMinimapShown()
     self:UpdateClickThrough()
+end
+
+-- The map frame's own alpha: the minimap alpha, raised towards 100% by the indoor override
+function Mappy:GetMapFrameAlpha()
+    local vAlpha = self.MinimapFaderAlpha
+    if vAlpha == 0 then
+        return 0
+    end
+    return vAlpha + (1 - vAlpha) * self.IndoorFaderAlpha
+end
+
+-- Set the map frame's alpha, and keep what's inside it at the minimap alpha
+function Mappy:ApplyMapFrameAlpha()
+    local vMapAlpha = self:GetMapFrameAlpha()
+    Minimap:SetAlpha(vMapAlpha)
+
+    -- Part of the minimap alpha the map frame doesn't already apply
+    local vRatio = 1
+    if vMapAlpha > 0 and not self:IsMinimapInFarmHud() then
+        vRatio = self.MinimapFaderAlpha / vMapAlpha
+    end
+    MinimapBackdrop:SetAlpha(vRatio)
+    Minimap.ZoomIn:SetAlpha(vRatio)
+    Minimap.ZoomOut:SetAlpha(vRatio)
+
+    -- Darken the map to the minimap alpha's brightness, divided by the map frame's alpha it sits in
+    -- Capped at 1, so mid-fade it can fall a bit short
+    local vDim = 0
+    if self.CurrentProfile.DimIndoorMap and vMapAlpha > 0 and not self:IsMinimapInFarmHud() then
+        vDim = math.min((1 - vRatio) / vMapAlpha, 1)
+    end
+    self.MapDimmer:SetAlpha(vDim)
+    self.MapDimmer:SetShown(vDim > 0)
+
+    self:ApplyBlobAlpha()
 end
 
 -- Set the alpha of quest, world quest and dig site areas
@@ -2182,7 +2254,8 @@ function Mappy:ApplyBlobAlpha()
     -- Keep the defaults while the minimap is in FarmHud's HUD
     local vAlpha = 1
     if self.CurrentProfile.FadeBlobs and not self:IsMinimapInFarmHud() then
-        vAlpha = self.MinimapFaderAlpha
+        -- Drawn on the map, so they follow the map frame
+        vAlpha = self:GetMapFrameAlpha()
     end
 
     local vRingAlpha = scaleBlobAlpha(self.BlobRingAlpha, vAlpha)
@@ -2273,6 +2346,14 @@ function Mappy:FadeAlphaTo(pTargetAlpha)
 end
 
 function Mappy:OnFadeFinished()
+    -- Below 100% indoors a redraw turns the map black, so keep its last drawing
+    if self:ShouldForceMapToOpaque() and self:GetMapFrameAlpha() < 1 then
+        return
+    end
+    self:RedrawMap()
+end
+
+function Mappy:RedrawMap()
 	-- Fudge the zoom to force the minimap to re-paint
 	local vMinimapZoom = Minimap:GetZoom()
 	if vMinimapZoom > 0 then
@@ -2304,17 +2385,83 @@ function Mappy:AdjustAlpha(pForceAlpha)
 			vAlpha = self.CurrentProfile.MinimapHoverAlpha or 1
 		end
 
-        -- Force the alpha to 1 if we're indoors. The minimap doesn't work
-        -- properly if the alpha isn't 1 (it'll just show solid black) while
-        -- it draws indoor map art, as in buildings, some cities, dungeons.
-
-		local forceToOpaque = self:ShouldForceMapToOpaque()
-		if vAlpha > 0 and forceToOpaque then
-			vAlpha = 1
-		end
-
 		self:FadeAlphaTo(vAlpha)
 	end
+
+    self:UpdateIndoorOverride()
+end
+
+-- 1 while the indoor override keeps the map frame at 100%
+-- The minimap draws indoor map art black below 100% alpha (buildings, some cities, dungeons)
+function Mappy:GetIndoorOverrideTarget()
+    if self:ShouldForceMapToOpaque() and self.FadeTarget ~= 0 and not self:IsMinimapInFarmHud()
+    and not (self.CurrentProfile.FadeIndoorMap and self.IndoorIdle) then
+        return 1
+    end
+    return 0
+end
+
+function Mappy:UpdateIndoorOverride()
+    -- Showing the map after 0% likely redraws it, so start over at 100%
+    if self.FadeTarget == 0 then
+        self.IndoorIdle = false
+    end
+
+    local vTarget = self:GetIndoorOverrideTarget()
+    if self.IndoorFadeTarget == vTarget then
+        return
+    end
+    self.IndoorFadeTarget = vTarget
+
+    local vFadeInfo = {}
+    vFadeInfo.mode = "IN"
+    vFadeInfo.startAlpha = self.IndoorFaderAlpha
+    vFadeInfo.endAlpha = vTarget
+    -- The idle fade is slower than the others
+    vFadeInfo.timeToFade = (vTarget == 0 and self.IndoorIdle) and self.IndoorFadeDuration or self.FadeDuration
+    -- Only a fade to 100% needs a redraw
+    if vTarget == 1 then
+        vFadeInfo.finishedFunc = self.OnFadeFinished
+        vFadeInfo.finishedArg1 = self
+    end
+    UIFrameFade(self.IndoorFader, vFadeInfo)
+end
+
+-- Back to 100% at once and redraw, for anything that may redraw the map
+function Mappy:SnapIndoorOverride()
+    self.IndoorIdle = false
+    if self.IndoorFaderAlpha < 1 and self:GetIndoorOverrideTarget() == 1 then
+        UIFrameFadeRemoveFrame(self.IndoorFader)
+        self.IndoorFadeTarget = 1
+        self.IndoorFader:SetAlpha(1)
+        self:RedrawMap()
+    end
+end
+
+-- Start the countdown to the idle fade
+function Mappy:ScheduleIndoorIdle()
+    if self.CurrentProfile.FadeIndoorMap and not self.IsMoving then
+        self.SchedulerLib:RescheduleTask(self.CurrentProfile.IndoorFadeDelay or self.IndoorFadeDelay, self.SetIndoorIdle, self)
+    else
+        self.SchedulerLib:UnscheduleTask(self.SetIndoorIdle, self)
+    end
+end
+
+function Mappy:SetIndoorIdle()
+    -- Wait until the map is shown again
+    if self.FadeTarget == 0 then
+        self:ScheduleIndoorIdle()
+        return
+    end
+    self.IndoorIdle = true
+    self:UpdateIndoorOverride()
+end
+
+-- Something that may redraw the map: back to 100%, and start the countdown again
+function Mappy:ResetIndoorIdle()
+    self:SnapIndoorOverride()
+    self:AdjustAlpha()
+    self:ScheduleIndoorIdle()
 end
 
 function Mappy:ZoneChanged()
@@ -2337,12 +2484,12 @@ end
 
 function Mappy:StartedMoving()
 	self.IsMoving = true
-	self:AdjustAlpha()
+    self:ResetIndoorIdle()
 end
 
 function Mappy:StoppedMoving()
 	self.IsMoving = false
-	self:AdjustAlpha()
+    self:ResetIndoorIdle()
 end
 
 function Mappy:IsMouseOverMinimapArea()
@@ -2650,6 +2797,28 @@ function Mappy:SetHideMinimapAtZeroAlpha(pValue)
     self:UpdateMinimapShown()
 end
 
+function Mappy:SetDimIndoorMap(pValue)
+    if self.DisableUpdates then return end
+
+    self.CurrentProfile.DimIndoorMap = pValue
+    self:ApplyMapFrameAlpha()
+end
+
+function Mappy:SetFadeIndoorMap(pValue)
+    if self.DisableUpdates then return end
+
+    self.CurrentProfile.FadeIndoorMap = pValue
+    self:ResetIndoorIdle()
+    self.AppearancePanel:UpdateDependentOptions()
+end
+
+function Mappy:SetIndoorFadeDelay(pDelay)
+    if self.DisableUpdates then return end
+
+    self.CurrentProfile.IndoorFadeDelay = pDelay
+    self:ScheduleIndoorIdle()
+end
+
 function Mappy:SetAutoHideButtons(pValue)
 	if self.DisableUpdates then return end
 
@@ -2884,6 +3053,9 @@ function Mappy._MinimapButton:Mappy_SaveClearAllPoints()
 end
 
 function Mappy:MinimapMouseWheel(pWheelDirection)
+    -- Back to 100% first, zooming redraws the map
+    self:SnapIndoorOverride()
+
 	local	vZoom = Minimap:GetZoom()
 	
 	if pWheelDirection > 0 then
@@ -3665,6 +3837,67 @@ function Mappy._AppearancePanel:Construct(pParent)
         setCheckbuttonTooltip(self.HideArchRingCheckbutton, "Hides the hatched pattern along the minimap's edge where a dig site continues past the map.")
 	end
 
+    --------------------------------
+    -- indoor map header
+    --------------------------------
+    self.IndoorLine = self:CreateLine()
+    self.IndoorLine:SetStartPoint("TOPLEFT", self, 10, -490)
+    self.IndoorLine:SetEndPoint("TOPRIGHT", self, -20, -490)
+    self.IndoorLine:SetColorTexture(1,1,1,0.25)
+    self.IndoorLine:SetThickness(2)
+
+    self.IndoorHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.IndoorHeader:SetPoint("TOPLEFT", self.IndoorLine, 5, 13)
+    self.IndoorHeader:SetText("OLED care")
+
+    -- Explanation on mouseover, the area is bigger than the text so it's easy to hit
+
+    self.IndoorInfo = CreateFrame("Frame", nil, self)
+    self.IndoorInfo:SetMouseMotionEnabled(true)
+    self.IndoorInfo.Text = self.IndoorInfo:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.IndoorInfo.Text:SetPoint("TOPRIGHT", self.IndoorLine, "TOPRIGHT", -5, 13)
+    self.IndoorInfo.Text:SetText("Why 100% alpha indoors?")
+    self.IndoorInfo:SetPoint("TOPLEFT", self.IndoorInfo.Text, "TOPLEFT", -8, 6)
+    self.IndoorInfo:SetPoint("BOTTOMRIGHT", self.IndoorInfo.Text, "BOTTOMRIGHT", 8, -6)
+    setCheckbuttonTooltip(self.IndoorInfo, "Indoors (buildings, caves, dungeons and some cities), the game draws the minimap black whenever the map itself is below 100% alpha. Mappy keeps the map at 100% there; the zone name, clock, border and buttons still follow your alpha sliders.\n\nOn OLED screens, it's recommended to use one of the settings below to reduce burn-in risk.")
+
+    -- Dim the map indoors
+
+    self.DimIndoorMapCheckbutton = CreateFrame("CheckButton", "MappyDimIndoorMapCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.DimIndoorMapCheckbutton:SetPoint("TOPLEFT", self.IndoorLine, "BOTTOMLEFT", 10, -15)
+    self.DimIndoorMapCheckbutton:SetScript("OnClick", function (self) Mappy:SetDimIndoorMap(self:GetChecked()) end)
+    MappyDimIndoorMapCheckbuttonText:SetText("Dim the map indoors")
+    setCheckbuttonTooltip(self.DimIndoorMapCheckbutton, "Indoors, a dark layer makes the map as dim as your alpha sliders. The map isn't see-through then.")
+
+    -- Fade the map after standing still
+
+    self.FadeIndoorMapCheckbutton = CreateFrame("CheckButton", "MappyFadeIndoorMapCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.FadeIndoorMapCheckbutton:SetPoint("TOPLEFT", self.IndoorLine, "BOTTOMLEFT", 350, -15)
+    self.FadeIndoorMapCheckbutton:SetScript("OnClick", function (self) Mappy:SetFadeIndoorMap(self:GetChecked()) end)
+    MappyFadeIndoorMapCheckbuttonText:SetText("Fade the map after standing still")
+    setCheckbuttonTooltip(self.FadeIndoorMapCheckbutton, "Indoors, after you stand still for the set delay, the map fades to your alpha sliders and stays see-through. Moving, zooming or a loading screen brings it back.\n\nIn a few in-game areas it can turn black after fading; take a step to bring it back.")
+
+    -- Fade delay slider
+
+    self.IndoorFadeDelaySlider = CreateFrame("Slider", "MappyIndoorFadeDelaySlider", self, "OptionsSliderTemplate")
+    self.IndoorFadeDelaySlider:SetWidth(180)
+    self.IndoorFadeDelaySlider:SetPoint("TOPLEFT", self.FadeIndoorMapCheckbutton, "BOTTOMLEFT", 10, -20)
+    MappyIndoorFadeDelaySliderLow:SetText("1s")
+    MappyIndoorFadeDelaySliderHigh:SetText("60s")
+    -- stepping
+    self.IndoorFadeDelaySlider:SetMinMaxValues(1, 60)
+    self.IndoorFadeDelaySlider:SetValueStep(1)
+    self.IndoorFadeDelaySlider:SetObeyStepOnDrag(true)
+    self.IndoorFadeDelaySlider:SetStepsPerPage(1)
+    -- initial value
+    MappyIndoorFadeDelaySliderText:SetText(string.format("Fade delay - %ds", Mappy.CurrentProfile.IndoorFadeDelay or Mappy.IndoorFadeDelay))
+    -- action
+    self.IndoorFadeDelaySlider:SetScript("OnValueChanged", function (self, value)
+        local vDelay = tonumber(string.format("%.0f", value))
+        Mappy:SetIndoorFadeDelay(vDelay)
+        MappyIndoorFadeDelaySliderText:SetText(string.format("Fade delay - %ds", vDelay))
+    end)
+
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -3697,6 +3930,9 @@ function Mappy._AppearancePanel:OnShow()
 	if self.HideArchRingCheckbutton then
 		self.HideArchRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideArchRing)
 	end
+    self.DimIndoorMapCheckbutton:SetChecked(Mappy.CurrentProfile.DimIndoorMap)
+    self.FadeIndoorMapCheckbutton:SetChecked(Mappy.CurrentProfile.FadeIndoorMap)
+    self.IndoorFadeDelaySlider:SetValue(Mappy.CurrentProfile.IndoorFadeDelay or Mappy.IndoorFadeDelay)
 
 	Mappy.DisableUpdates = false
 end
@@ -3711,6 +3947,9 @@ function Mappy._AppearancePanel:UpdateDependentOptions()
     if self.AlwaysShowGroupFinderCheckbutton then
         setCheckbuttonEnabled(self.AlwaysShowGroupFinderCheckbutton, Mappy.CurrentProfile.AutoHideButtons)
     end
+
+    -- The delay only applies while the fade is on
+    setSliderEnabled(self.IndoorFadeDelaySlider, Mappy.CurrentProfile.FadeIndoorMap)
 end
 
 function Mappy._AppearancePanel:OnHide()
