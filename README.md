@@ -23,8 +23,8 @@ Mappy-Continued is a minimap addon focused on changing the minimap shape into a 
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
 * Zooming in and out with the mouse wheel
 * Alpha settings, separate for combat, movement, mouseover and default state
-* Alpha working while indoors/instanced/in cities, with automatic 100% override that ensures the map is always rendered correctly
-* Optional OLED care features (dimming overlay when indoors; fading when idle indoors)
+* Mask-based map transparency through city and indoor transitions
+* Option to show map icons when the minimap is at 0% alpha
 * Optional fading of quest/WQ/archaeology areas with the minimap alpha
 * Option to hide the quest/WQ/archaeology edge pattern
 * Player coordinates
