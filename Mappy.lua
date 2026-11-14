@@ -319,7 +319,7 @@ Mappy.ObjectIconsHighlightPath = ""
 
 Mappy.HousingIndoorBgPath = "Interface\\Addons\\Mappy\\Textures\\UIHudMinimapHousingIndoorStaticBg"
 
-Mappy.MinimapMaskPath = "Interface\\Addons\\Mappy\\Textures\\MinimapMask"
+Mappy.MinimapMaskPath = Mappy.AddonPath.."Textures\\MinimapMaskAlpha50.tga"
 
 Mappy.SquareQuestRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareQuestRing"
 Mappy.SquareTaskRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareTaskRing"
@@ -2140,13 +2140,15 @@ function Mappy:UpdateCoords()
     end
 end
 
+-- Keep the map frame opaque; the fixed 50% mask supplies its transparency.
 -- Set the map, zone name and clock alpha, and update the buttons, quest areas, the hide and click-through
 function Mappy:ApplyMinimapAlpha(pAlpha)
-    self.MinimapFaderAlpha = pAlpha
-    Minimap:SetAlpha(pAlpha)
-    MinimapCluster.ZoneTextButton:SetAlpha(pAlpha)
+    local vAlpha = 0.5
+    self.MinimapFaderAlpha = vAlpha
+    Minimap:SetAlpha(1)
+    MinimapCluster.ZoneTextButton:SetAlpha(vAlpha)
     if TimeManagerClockButton then
-        TimeManagerClockButton:SetAlpha(pAlpha)
+        TimeManagerClockButton:SetAlpha(vAlpha)
     end
     self:SetButtonsAlpha()
     self:ApplyBlobAlpha()
@@ -2228,36 +2230,15 @@ function Mappy:UpdateClickThrough()
     end
 end
 
+-- Hold fixed opacity without animating the helper or scheduling a repaint.
 function Mappy:FadeAlphaTo(pTargetAlpha)
-    -- Already there or on the way
-    if self.FadeTarget == pTargetAlpha then
-        return
-    end
-
-    self.FadeStart = self.MinimapFaderAlpha
-    self.FadeTarget = pTargetAlpha
-
-    local vFadeInfo = {}
-    vFadeInfo.mode = "IN"
-    vFadeInfo.startAlpha = self.MinimapFaderAlpha
-    vFadeInfo.endAlpha = pTargetAlpha
-    vFadeInfo.timeToFade = self.FadeDuration
-    vFadeInfo.finishedFunc = self.OnFadeFinished
-    vFadeInfo.finishedArg1 = self
-
-    -- UIFrameFade calls Show(), so fade a helper frame instead of the minimap
-    UIFrameFade(self.MinimapFader, vFadeInfo)
+    self.FadeStart = 0.5
+    self.FadeTarget = 0.5
+    self:ApplyMinimapAlpha(0.5)
 end
 
+-- Mask transparency does not need the original zoom-refresh workaround.
 function Mappy:OnFadeFinished()
-	-- Fudge the zoom to force the minimap to re-paint
-	local vMinimapZoom = Minimap:GetZoom()
-	if vMinimapZoom > 0 then
-		Minimap:SetZoom(vMinimapZoom - 1)
-	else
-		Minimap:SetZoom(vMinimapZoom + 1)
-	end
-	Minimap:SetZoom(vMinimapZoom)
 end
 
 function Mappy:AdjustAlpha(pForceAlpha)
