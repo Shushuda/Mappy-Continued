@@ -38,13 +38,16 @@ Mappy.ButtonsHidden = false
 -- Frames whose mouse Mappy turned off at 0% alpha
 Mappy.ClickThroughFrames = {}
 
--- Minimap view radius in yards at each zoom level while it draws outdoor map art
--- Retail has an extra zoomed-out level
-if Mappy.IsForeverClient then
-    Mappy.OutdoorViewRadius = {[0] = 233.33, 200, 166.67, 133.33, 100, 66.67}
-else
-    Mappy.OutdoorViewRadius = {[0] = 333.33, 233.33, 200, 166.67, 133.33, 100}
-end
+-- Minimap view radius in yards at each zoom level, measured in game
+-- Retail's main sets have an extra zoomed-out level
+Mappy.OutdoorViewRadii = {
+    {[0] = 333.33, 233.33, 200, 166.67, 133.33, 100}, -- Retail
+    {[0] = 233.33, 200, 166.67, 133.33, 100, 66.67}, -- Forever, Retail housing (neighborhood and house interiors)
+}
+Mappy.IndoorViewRadii = {
+    {[0] = 220, 150, 120, 90, 60, 40}, -- Retail
+    {[0] = 150, 120, 90, 60, 40, 25}, -- Forever
+}
 
 -- Border tint. Retail's tooltip art at 85% is closest to the old border
 -- Forever's is drawn as is
@@ -560,11 +563,6 @@ function Mappy:InitializeMinimap()
 	self.EventLib:RegisterEvent("ZONE_CHANGED", self.ZoneChanged, self)
 	self.EventLib:RegisterEvent("ZONE_CHANGED_INDOORS", self.ZoneChanged, self)
     self.EventLib:RegisterEvent("MINIMAP_UPDATE_ZOOM", self.ZoneChanged, self)
-
-    -- The indoor check needs a radius for every zoom level, which start at 0
-    if Minimap:GetZoomLevels() ~= #self.OutdoorViewRadius + 1 then
-        self:ErrorMessage("Minimap zoom data is out of date. The minimap may turn black indoors when its alpha is below 100%. Please report this on Mappy Continued's GitHub page.")
-    end
 
 	self.EventLib:RegisterEvent("PLAYER_ENTERING_WORLD", self.RegenEnabled, self)
 	self.EventLib:RegisterEvent("PLAYER_REGEN_ENABLED", self.RegenEnabled, self)
@@ -2028,13 +2026,38 @@ end
 
 -- True while the minimap draws indoor map art. IsIndoors() misses it in some cities
 function Mappy:IsMinimapInIndoorMode()
-    local vOutdoorRadius = self.OutdoorViewRadius[Minimap:GetZoom()]
-    -- Unknown zoom level, InitializeMinimap() reports it
-    if not vOutdoorRadius then
+    local vZoom = Minimap:GetZoom()
+    local vRadius = C_Minimap.GetViewRadius()
+    if self:MatchesViewRadius(self.IndoorViewRadii, vZoom, vRadius) then
+        return true
+    elseif self:MatchesViewRadius(self.OutdoorViewRadii, vZoom, vRadius) then
         return false
     end
-    -- Indoor zoom levels show less, 1 yard of room for rounding
-    return C_Minimap.GetViewRadius() < vOutdoorRadius - 1
+
+    -- Unknown zone: keep the map at 100% so it can't turn black
+    self:ReportViewRadius(vZoom, vRadius)
+    return true
+end
+
+-- True if one of the sets has this radius at this zoom level, 1 yard of room for rounding
+function Mappy:MatchesViewRadius(pSets, pZoom, pRadius)
+    for _, vSet in ipairs(pSets) do
+        if vSet[pZoom] and math.abs(pRadius - vSet[pZoom]) < 1 then
+            return true
+        end
+    end
+    return false
+end
+
+-- Once a session
+function Mappy:ReportViewRadius(pZoom, pRadius)
+    if self.ViewRadiusReported then
+        return
+    end
+    self.ViewRadiusReported = true
+
+    self:ErrorMessage("Minimap zoom data is missing for %s (map %s, zoom %d, %.1f yards). The minimap may stay at 100%% alpha there. Please report this on Mappy Continued's GitHub page.",
+        GetZoneText(), tostring(C_Map.GetBestMapForUnit("player")), pZoom, pRadius)
 end
 
 function Mappy:ShouldForceMapToOpaque()
