@@ -31,7 +31,6 @@ Mappy.FadeTarget = nil
 Mappy.MinimapFaderAlpha = 1
 Mappy.ButtonFaderAlpha = 1
 Mappy.FadeDuration = 0.25
-Mappy.MapDimStrength = 0.5
 Mappy.IsHovering = false
 Mappy.ButtonHideDelay = 3
 Mappy.ButtonFadeDuration = 0.2
@@ -449,8 +448,6 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 HideMinimapAtZeroAlpha = true,
-                DimMap = false,
-                MapDimStrength = self.MapDimStrength,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = false,
@@ -493,8 +490,6 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 HideMinimapAtZeroAlpha = false,
-                DimMap = false,
-                MapDimStrength = self.MapDimStrength,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = true,
@@ -625,7 +620,6 @@ function Mappy:InitializeMinimap()
         -- and show FarmHud's stand-in at the map's spot
         FarmHud:HookScript("OnShow", function()
             Mappy:ApplyBlobAlpha()
-            Mappy:ApplyMapDimming()
             Mappy:UpdateMinimapShown()
         end)
 
@@ -1171,15 +1165,6 @@ function Mappy:InitializeSquareShape()
     Minimap.ZoomOut:SetPoint("TOPLEFT", 2, -24)
     Minimap.ZoomIn:SetFrameLevel(self.TooltipBorder:GetFrameLevel() + 1)
     Minimap.ZoomOut:SetFrameLevel(self.TooltipBorder:GetFrameLevel() + 1)
-
-    -- Optional darkening above the map and native icons, below the border.
-    self.MapDimmer = CreateFrame("Frame", nil, Minimap)
-    self.MapDimmer:SetAllPoints()
-    self.MapDimmer:SetFrameLevel(Minimap:GetFrameLevel() + 1)
-    self.MapDimmer.Texture = self.MapDimmer:CreateTexture(nil, "BACKGROUND")
-    self.MapDimmer.Texture:SetAllPoints()
-    self.MapDimmer.Texture:SetColorTexture(0, 0, 0)
-    self.MapDimmer:Hide()
 end
 
 -- Stop minimap rotation
@@ -1801,8 +1786,6 @@ function Mappy:ConfigureMinimap()
 
     self:StackMinimapButtons()
     self:AdjustAlpha()
-    -- Dimming can change between profiles even when their opacity is the same.
-    self:ApplyMapDimming()
 end
 
 -- IsVisible(), but counts the map as shown while it's hidden at 0% alpha
@@ -2153,33 +2136,8 @@ function Mappy:ApplyMinimapAlpha(pAlpha)
     end
     self:SetButtonsAlpha()
     self:ApplyBlobAlpha()
-    self:ApplyMapDimming()
     self:UpdateMinimapShown()
     self:UpdateClickThrough()
-end
-
--- Keep the old dimming opt-in until the user explicitly changes the new option.
-function Mappy:IsMapDimmingEnabled()
-    local vDimMap = self.CurrentProfile.DimMap
-    if vDimMap == nil then
-        return self.CurrentProfile.DimIndoorMap or false
-    end
-    return vDimMap
-end
-
--- The overlay follows Mappy's opacity without changing the native map alpha.
-function Mappy:ApplyMapDimming()
-    if not self.MapDimmer then
-        return
-    end
-
-    local vDim = 0
-    if self:IsMapDimmingEnabled() and not self:IsMinimapInFarmHud() then
-        local vStrength = self.CurrentProfile.MapDimStrength or self.MapDimStrength
-        vDim = math.max(0, math.min(1, vStrength)) * self.MinimapFaderAlpha
-    end
-    self.MapDimmer:SetAlpha(vDim)
-    self.MapDimmer:SetShown(vDim > 0)
 end
 
 -- Set the alpha of quest, world quest and dig site areas
@@ -2631,21 +2589,6 @@ function Mappy:SetHideMinimapAtZeroAlpha(pValue)
 
     self.CurrentProfile.HideMinimapAtZeroAlpha = pValue
     self:UpdateMinimapShown()
-end
-
-function Mappy:SetDimMap(pValue)
-    if self.DisableUpdates then return end
-
-    self.CurrentProfile.DimMap = pValue
-    self:ApplyMapDimming()
-    self.AppearancePanel:UpdateDependentOptions()
-end
-
-function Mappy:SetMapDimStrength(pStrength)
-    if self.DisableUpdates then return end
-
-    self.CurrentProfile.MapDimStrength = math.max(0, math.min(1, pStrength))
-    self:ApplyMapDimming()
 end
 
 function Mappy:SetAutoHideButtons(pValue)
@@ -3432,7 +3375,7 @@ function Mappy._AppearancePanel:Construct(pParent)
 
     self.Desc = self:CreateFontString(nil, "ARTWORK", "GameFontWhiteSmall")
     self.Desc:SetPoint("TOPLEFT", self.Title, 1, -30)
-    self.Desc:SetText("Size, transparency and darkening settings.")
+    self.Desc:SetText("Size and transparency settings.")
 
     --------------------------------
     -- size alpha header
@@ -3663,41 +3606,6 @@ function Mappy._AppearancePanel:Construct(pParent)
         setCheckbuttonTooltip(self.HideArchRingCheckbutton, "Hides the hatched pattern along the minimap's edge where a dig site continues past the map.")
 	end
 
-    --------------------------------
-    -- map darkening
-    --------------------------------
-    self.DimmingLine = self:CreateLine()
-    self.DimmingLine:SetStartPoint("TOPLEFT", self, 10, -490)
-    self.DimmingLine:SetEndPoint("TOPRIGHT", self, -20, -490)
-    self.DimmingLine:SetColorTexture(1,1,1,0.25)
-    self.DimmingLine:SetThickness(2)
-
-    self.DimmingHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    self.DimmingHeader:SetPoint("TOPLEFT", self.DimmingLine, 5, 13)
-    self.DimmingHeader:SetText("Map darkening")
-
-    self.DimMapCheckbutton = CreateFrame("CheckButton", "MappyDimMapCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
-    self.DimMapCheckbutton:SetPoint("TOPLEFT", self.DimmingLine, "BOTTOMLEFT", 10, -15)
-    self.DimMapCheckbutton:SetScript("OnClick", function (self) Mappy:SetDimMap(self:GetChecked()) end)
-    MappyDimMapCheckbuttonText:SetText("Darken minimap")
-    setCheckbuttonTooltip(self.DimMapCheckbutton, "Adds a black overlay in all locations, including over native map icons. Its strength fades with your minimap alpha settings and disappears at 0% alpha.\n\nThe overlay also darkens the world visible through the map. Borders and controls are not darkened. It is hidden while FarmHud owns the minimap.")
-
-    self.MapDimStrengthSlider = CreateFrame("Slider", "MappyMapDimStrengthSlider", self, "OptionsSliderTemplate")
-    self.MapDimStrengthSlider:SetWidth(180)
-    self.MapDimStrengthSlider:SetPoint("TOPLEFT", self.DimmingLine, "BOTTOMLEFT", 350, -20)
-    MappyMapDimStrengthSliderLow:SetText("0%")
-    MappyMapDimStrengthSliderHigh:SetText("100%")
-    self.MapDimStrengthSlider:SetMinMaxValues(0, 1)
-    self.MapDimStrengthSlider:SetValueStep(0.01)
-    self.MapDimStrengthSlider:SetObeyStepOnDrag(true)
-    self.MapDimStrengthSlider:SetStepsPerPage(1)
-    MappyMapDimStrengthSliderText:SetText(string.format("Darkening strength - %.0f%%", (Mappy.CurrentProfile.MapDimStrength or Mappy.MapDimStrength) * 100))
-    self.MapDimStrengthSlider:SetScript("OnValueChanged", function (self, pValue)
-        local vStrength = tonumber(string.format("%.2f", pValue))
-        Mappy:SetMapDimStrength(vStrength)
-        MappyMapDimStrengthSliderText:SetText(string.format("Darkening strength - %.0f%%", vStrength * 100))
-    end)
-
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -3710,8 +3618,6 @@ function Mappy._AppearancePanel:OnShow()
 	self.CombatAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapCombatAlpha or 0.2)
 	self.MovingAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapMovingAlpha or 0.2)
     self.HoverAlphaSlider:SetValue(Mappy.CurrentProfile.MinimapHoverAlpha or 1)
-    self.DimMapCheckbutton:SetChecked(Mappy:IsMapDimmingEnabled())
-    self.MapDimStrengthSlider:SetValue(Mappy.CurrentProfile.MapDimStrength or Mappy.MapDimStrength)
 	self.HoverOpaqueCheckbutton:SetChecked(Mappy.CurrentProfile.MinimapHoverOpaque)
 	self.FadeButtonsCheckbutton:SetChecked(not Mappy.CurrentProfile.FadeButtons)
 	self.AutoHideButtonsCheckbutton:SetChecked(Mappy.CurrentProfile.AutoHideButtons)
@@ -3740,7 +3646,6 @@ end
 function Mappy._AppearancePanel:UpdateDependentOptions()
     -- Mouseover alpha only applies while it's turned on
     setSliderEnabled(self.HoverAlphaSlider, Mappy.CurrentProfile.MinimapHoverOpaque)
-    setSliderEnabled(self.MapDimStrengthSlider, Mappy:IsMapDimmingEnabled())
 
     -- The exceptions only matter while buttons show only on mouseover
     setCheckbuttonEnabled(self.AlwaysShowMailCheckbutton, Mappy.CurrentProfile.AutoHideButtons)

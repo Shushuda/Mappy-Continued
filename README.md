@@ -24,7 +24,6 @@ Mappy-Continued is a minimap addon focused on changing the minimap shape into a 
 * Zooming in and out with the mouse wheel
 * Alpha settings, separate for combat, movement, mouseover and default state
 * Mask-based map transparency through city and indoor transitions
-* Optional map darkening with adjustable strength that fades with minimap alpha
 * Option to show map icons when the minimap is at 0% alpha
 * Optional fading of quest/WQ/archaeology areas with the minimap alpha
 * Option to hide the quest/WQ/archaeology edge pattern
