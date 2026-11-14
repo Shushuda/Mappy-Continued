@@ -38,14 +38,6 @@ Mappy.ButtonsHidden = false
 -- Frames whose mouse Mappy turned off at 0% alpha
 Mappy.ClickThroughFrames = {}
 
--- Minimap view radius in yards at each zoom level while it draws outdoor map art
--- Retail has an extra zoomed-out level
-if Mappy.IsForeverClient then
-    Mappy.OutdoorViewRadius = {[0] = 233.33, 200, 166.67, 133.33, 100, 66.67}
-else
-    Mappy.OutdoorViewRadius = {[0] = 333.33, 233.33, 200, 166.67, 133.33, 100}
-end
-
 -- Border tint. Retail's tooltip art at 85% is closest to the old border
 -- Forever's is drawn as is
 Mappy.BorderTint = Mappy.IsForeverClient and 1 or 0.85
@@ -319,7 +311,8 @@ Mappy.ObjectIconsHighlightPath = ""
 
 Mappy.HousingIndoorBgPath = "Interface\\Addons\\Mappy\\Textures\\UIHudMinimapHousingIndoorStaticBg"
 
-Mappy.MinimapMaskPath = "Interface\\Addons\\Mappy\\Textures\\MinimapMask"
+Mappy.MinimapMaskPathFormat = Mappy.AddonPath.."Textures\\MinimapMasks\\%03d.tga"
+Mappy.MinimapMaskPath = string.format(Mappy.MinimapMaskPathFormat, 255)
 
 Mappy.SquareQuestRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareQuestRing"
 Mappy.SquareTaskRingPath = "Interface\\Addons\\Mappy\\Textures\\SquareTaskRing"
@@ -559,12 +552,6 @@ function Mappy:InitializeMinimap()
 	-- Register for events
 	self.EventLib:RegisterEvent("ZONE_CHANGED", self.ZoneChanged, self)
 	self.EventLib:RegisterEvent("ZONE_CHANGED_INDOORS", self.ZoneChanged, self)
-    self.EventLib:RegisterEvent("MINIMAP_UPDATE_ZOOM", self.ZoneChanged, self)
-
-    -- The indoor check needs a radius for every zoom level, which start at 0
-    if Minimap:GetZoomLevels() ~= #self.OutdoorViewRadius + 1 then
-        self:ErrorMessage("Minimap zoom data is out of date. The minimap may turn black indoors when its alpha is below 100%. Please report this on Mappy Continued's GitHub page.")
-    end
 
 	self.EventLib:RegisterEvent("PLAYER_ENTERING_WORLD", self.RegenEnabled, self)
 	self.EventLib:RegisterEvent("PLAYER_REGEN_ENABLED", self.RegenEnabled, self)
@@ -2026,21 +2013,6 @@ function Mappy:IsDruidTravelForm()
     return false
 end
 
--- True while the minimap draws indoor map art. IsIndoors() misses it in some cities
-function Mappy:IsMinimapInIndoorMode()
-    local vOutdoorRadius = self.OutdoorViewRadius[Minimap:GetZoom()]
-    -- Unknown zoom level, InitializeMinimap() reports it
-    if not vOutdoorRadius then
-        return false
-    end
-    -- Indoor zoom levels show less, 1 yard of room for rounding
-    return C_Minimap.GetViewRadius() < vOutdoorRadius - 1
-end
-
-function Mappy:ShouldForceMapToOpaque()
-    return self:IsMinimapInIndoorMode()
-end
-
 function Mappy:GetInstanceType()
 	local _, instanceType, _, _, _, _, _, instanceMapID = GetInstanceInfo()
 
@@ -2096,13 +2068,6 @@ function Mappy:Update()
 	
 	-- Update the alpha
 	
-    local vMinimapIndoors = self:IsMinimapInIndoorMode()
-
-    if self.wasMinimapIndoors ~= vMinimapIndoors then
-        self.wasMinimapIndoors = vMinimapIndoors
-        self:AdjustAlpha()
-    end
-
 	local	vResting = IsResting()
 	
 	if self.wasResting ~= vResting then
@@ -2140,10 +2105,31 @@ function Mappy:UpdateCoords()
     end
 end
 
+-- Quantize opacity to the mask's 8-bit alpha; do not reload an unchanged mask.
+function Mappy:SetMinimapMaskAlpha(pAlpha)
+    local vAlphaByte = math.max(0, math.min(255, math.floor(pAlpha * 255 + 0.5)))
+    if self.MinimapMaskAlphaByte == vAlphaByte then
+        return
+    end
+
+    self.MinimapMaskAlphaByte = vAlphaByte
+    self.MinimapMaskPath = string.format(self.MinimapMaskPathFormat, vAlphaByte)
+    Minimap:SetMaskTexture(self.MinimapMaskPath)
+end
+
 -- Set the map, zone name and clock alpha, and update the buttons, quest areas, the hide and click-through
 function Mappy:ApplyMinimapAlpha(pAlpha)
     self.MinimapFaderAlpha = pAlpha
-    Minimap:SetAlpha(pAlpha)
+    if not self:IsMinimapInFarmHud() then
+        Minimap:SetAlpha(1)
+        self:SetMinimapMaskAlpha(pAlpha)
+
+        -- The original backdrop contains Mappy's border and the static overlay.
+        MinimapBackdrop:GetParent():SetAlpha(pAlpha)
+        self.CoordString:SetAlpha(pAlpha)
+        Minimap.ZoomIn:SetAlpha(pAlpha)
+        Minimap.ZoomOut:SetAlpha(pAlpha)
+    end
     MinimapCluster.ZoneTextButton:SetAlpha(pAlpha)
     if TimeManagerClockButton then
         TimeManagerClockButton:SetAlpha(pAlpha)
@@ -2242,22 +2228,9 @@ function Mappy:FadeAlphaTo(pTargetAlpha)
     vFadeInfo.startAlpha = self.MinimapFaderAlpha
     vFadeInfo.endAlpha = pTargetAlpha
     vFadeInfo.timeToFade = self.FadeDuration
-    vFadeInfo.finishedFunc = self.OnFadeFinished
-    vFadeInfo.finishedArg1 = self
 
     -- UIFrameFade calls Show(), so fade a helper frame instead of the minimap
     UIFrameFade(self.MinimapFader, vFadeInfo)
-end
-
-function Mappy:OnFadeFinished()
-	-- Fudge the zoom to force the minimap to re-paint
-	local vMinimapZoom = Minimap:GetZoom()
-	if vMinimapZoom > 0 then
-		Minimap:SetZoom(vMinimapZoom - 1)
-	else
-		Minimap:SetZoom(vMinimapZoom + 1)
-	end
-	Minimap:SetZoom(vMinimapZoom)
 end
 
 function Mappy:AdjustAlpha(pForceAlpha)
@@ -2279,15 +2252,6 @@ function Mappy:AdjustAlpha(pForceAlpha)
 		-- Mouseover alpha
 		if self.IsHovering and self.CurrentProfile.MinimapHoverOpaque then
 			vAlpha = self.CurrentProfile.MinimapHoverAlpha or 1
-		end
-
-        -- Force the alpha to 1 if we're indoors. The minimap doesn't work
-        -- properly if the alpha isn't 1 (it'll just show solid black) while
-        -- it draws indoor map art, as in buildings, some cities, dungeons.
-
-		local forceToOpaque = self:ShouldForceMapToOpaque()
-		if vAlpha > 0 and forceToOpaque then
-			vAlpha = 1
 		end
 
 		self:FadeAlphaTo(vAlpha)
