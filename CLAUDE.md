@@ -198,9 +198,9 @@ The tree is the same on both clients: `UIParent → MinimapCluster → MinimapCo
 
 ## Reference Documentation
 
-The `wow-ui-source/` directory contains the latest WoW UI source code mirrored from Blizzard. This is **documentation only** - use it as a reference for WoW's Lua API, frame templates, and UI patterns. Do not modify files in this directory or treat them as part of this addon project.
+The `wow-ui-source/` directory (one tier above working dir) contains the latest WoW UI source code mirrored from Blizzard. This is **documentation only** - use it as a reference for WoW's Lua API, frame templates, and UI patterns. Do not modify files in this directory or treat them as part of this addon project.
 
-It's a git repo with one branch per WoW client. The working tree is on `live`, so searching its files covers **retail only**. Read other branches without checking them out:
+It's a git repo with one branch per WoW client. Read branches without checking them out:
 - Search: `git -C wow-ui-source grep -n <pattern> origin/<branch> --`
 - Read a file: `git -C wow-ui-source show origin/<branch>:<path>`
 
