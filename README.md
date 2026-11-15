@@ -23,9 +23,9 @@ Mappy-Continued is a minimap addon focused on changing the minimap shape into a 
 * Pretty-ing the stock Calendar, Mail and Tracking buttons to actually look like buttons
 * Zooming in and out with the mouse wheel
 * Alpha settings, separate for combat, movement, mouseover and default state
-* Mask-based map transparency through city and indoor transitions
-* Option to show map icons when the minimap is at 0% alpha
-* Optional fading of quest/WQ/archaeology areas with the minimap alpha
+* Fully working alpha while indoors/instanced/in cities
+* Option to show only map icons at 0% alpha (sonar mode)
+* Fading of quest/WQ/archaeology areas with the minimap alpha
 * Option to hide the quest/WQ/archaeology edge pattern
 * Player coordinates
 * Profiles (including being able to set a profile for mounting, dungeon etc)
@@ -71,6 +71,7 @@ Mappy-Continued is a minimap addon focused on changing the minimap shape into a 
 * [wealdly](https://github.com/wealdly) (bugfixes and performance improvements)
 * [Little-Bunny-FuFu](https://github.com/Little-Bunny-FuFu) (bugfixes)
 * [Zuz666](https://github.com/Zuz666) (bugfixes and improvements)
+* [Knaledge](https://github.com/Knaledge) (improvements, alpha rework)
 
 ## License
 
