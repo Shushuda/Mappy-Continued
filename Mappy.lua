@@ -385,7 +385,6 @@ function Mappy:AddonLoaded(pEventID, pAddonName)
 
         -- Remove settings of removed options
         vProfile.FadeBlobs = nil
-        vProfile.DimIndoorMap = nil
         vProfile.FadeIndoorMap = nil
         vProfile.IndoorFadeDelay = nil
 	end
@@ -451,6 +450,7 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 HideMinimapAtZeroAlpha = true,
+                DimIndoorMap = false,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = false,
@@ -492,6 +492,7 @@ function Mappy:InitializeSettings()
                 CoordAnchor = "BOTTOMLEFT",
                 MinimapHoverOpaque = false,
                 HideMinimapAtZeroAlpha = false,
+                DimIndoorMap = false,
                 FadeButtons = true,
                 AutoHideButtons = true,
                 HideQuestRing = true,
@@ -3591,6 +3592,29 @@ function Mappy._AppearancePanel:Construct(pParent)
         setCheckbuttonTooltip(self.HideArchRingCheckbutton, "Hides the hatched pattern along the minimap's edge where a dig site continues past the map.")
 	end
 
+    --------------------------------
+    -- OLED care header
+    --------------------------------
+    self.OledCareLine = self:CreateLine()
+    self.OledCareLine:SetStartPoint("TOPLEFT", self, 10, -490)
+    self.OledCareLine:SetEndPoint("TOPRIGHT", self, -20, -490)
+    self.OledCareLine:SetColorTexture(1,1,1,0.25)
+    self.OledCareLine:SetThickness(2)
+
+    self.OledCareHeader = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.OledCareHeader:SetPoint("TOPLEFT", self.OledCareLine, 5, 13)
+    self.OledCareHeader:SetText("OLED care")
+
+    -- Dim the map indoors
+    -- TODO: enable toggle after it's rewritten
+
+    self.DimIndoorMapCheckbutton = CreateFrame("CheckButton", "MappyDimIndoorMapCheckbutton", self, "InterfaceOptionsCheckButtonTemplate")
+    self.DimIndoorMapCheckbutton:SetPoint("TOPLEFT", self.OledCareLine, "BOTTOMLEFT", 10, -15)
+    MappyDimIndoorMapCheckbuttonText:SetText("Dim the map indoors")
+    setCheckbuttonTooltip(self.DimIndoorMapCheckbutton, "Temporarily disabled while this feature is being rewritten.")
+    -- Show the tooltip while it's greyed out
+    self.DimIndoorMapCheckbutton:SetMotionScriptsWhileDisabled(true)
+
 	self:SetScript("OnShow", self.OnShow)
 	self:SetScript("OnHide", self.OnHide)
 end
@@ -3622,6 +3646,7 @@ function Mappy._AppearancePanel:OnShow()
 	if self.HideArchRingCheckbutton then
 		self.HideArchRingCheckbutton:SetChecked(Mappy.CurrentProfile.HideArchRing)
 	end
+    self.DimIndoorMapCheckbutton:SetChecked(Mappy.CurrentProfile.DimIndoorMap)
 
 	Mappy.DisableUpdates = false
 end
@@ -3636,6 +3661,9 @@ function Mappy._AppearancePanel:UpdateDependentOptions()
     if self.AlwaysShowGroupFinderCheckbutton then
         setCheckbuttonEnabled(self.AlwaysShowGroupFinderCheckbutton, Mappy.CurrentProfile.AutoHideButtons)
     end
+
+    -- TODO: enable "Dim the map indoors" after it's rewritten
+    setCheckbuttonEnabled(self.DimIndoorMapCheckbutton, false)
 end
 
 function Mappy._AppearancePanel:OnHide()
