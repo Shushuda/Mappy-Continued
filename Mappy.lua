@@ -382,6 +382,12 @@ function Mappy:AddonLoaded(pEventID, pAddonName)
 	-- Remove unused AttachmentPosition, old versions saved a full copy of UIParent in it
 	for _, vProfile in pairs(gMappy_Settings.Profiles) do
 		vProfile.AttachmentPosition = nil
+
+        -- Remove settings of removed options
+        vProfile.FadeBlobs = nil
+        vProfile.DimIndoorMap = nil
+        vProfile.FadeIndoorMap = nil
+        vProfile.IndoorFadeDelay = nil
 	end
 
 	--
