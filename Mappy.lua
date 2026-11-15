@@ -617,11 +617,10 @@ function Mappy:InitializeMinimap()
             end
         end)
 
-        -- Put quest areas back to their defaults while the minimap is in the HUD
-        -- and show FarmHud's stand-in at the map's spot
+        -- Put the map's parts and quest areas back to 100% and their defaults while
+        -- the minimap is in the HUD and show FarmHud's stand-in at the map's spot
         FarmHud:HookScript("OnShow", function()
-            Mappy:ApplyBlobAlpha()
-            Mappy:UpdateMinimapShown()
+            Mappy:ApplyMinimapAlpha(Mappy.MinimapFaderAlpha)
         end)
 
         -- Let FarmHud keep frames anchored to the minimap in place while the HUD is shown
@@ -2114,17 +2113,21 @@ end
 -- Set the map, zone name and clock alpha, and update the buttons, quest areas, the hide and click-through
 function Mappy:ApplyMinimapAlpha(pAlpha)
     self.MinimapFaderAlpha = pAlpha
+
+    -- FarmHud sets the map's alpha in its HUD, so keep these at 100% there
+    local vMapAlpha = 1
     if not self:IsMinimapInFarmHud() then
+        vMapAlpha = pAlpha
         -- Below 100% the map draws indoor art black, so fade it through its mask
         Minimap:SetAlpha(1)
-        self:SetMinimapMaskAlpha(pAlpha)
-
-        -- Blizzard's backdrop, with Mappy's border and the housing overlay inside
-        MinimapBackdrop:GetParent():SetAlpha(pAlpha)
-        self.CoordString:SetAlpha(pAlpha)
-        Minimap.ZoomIn:SetAlpha(pAlpha)
-        Minimap.ZoomOut:SetAlpha(pAlpha)
     end
+    self:SetMinimapMaskAlpha(vMapAlpha)
+
+    -- Blizzard's backdrop, with Mappy's border and the housing overlay inside
+    MinimapBackdrop:GetParent():SetAlpha(vMapAlpha)
+    self.CoordString:SetAlpha(vMapAlpha)
+    Minimap.ZoomIn:SetAlpha(vMapAlpha)
+    Minimap.ZoomOut:SetAlpha(vMapAlpha)
     MinimapCluster.ZoneTextButton:SetAlpha(pAlpha)
     if TimeManagerClockButton then
         TimeManagerClockButton:SetAlpha(pAlpha)
