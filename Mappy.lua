@@ -1704,9 +1704,21 @@ function Mappy:SetMinimapSize(pSize)
 	self.SchedulerLib:ScheduleUniqueTask(0, self.ConfigureMinimap, self)
 end
 
+-- Saved layouts can be newer than the manager's Lua cache. Read them and prepend
+-- presets exactly as UpdateLayoutInfo does, without touching its live tables.
+local function GetSavedEditModeLayouts()
+    local vLayoutInfo = C_EditMode.GetLayouts()
+    local vLayouts = EditModePresetLayoutManager:GetCopyOfPresetLayouts()
+    for _, vLayout in ipairs(vLayoutInfo.layouts) do
+        vLayouts[#vLayouts + 1] = vLayout
+    end
+    vLayoutInfo.layouts = vLayouts
+    return vLayoutInfo
+end
+
 function Mappy:GetEditModeMinimapScale()
-    -- GetActiveLayoutInfo uses the manager's preset-expanded list, not GetLayouts' raw list.
-    local vLayout = EditModeManagerFrame:GetActiveLayoutInfo()
+    local vLayoutInfo = GetSavedEditModeLayouts()
+    local vLayout = EditModeManagerFrame.overrideLayoutInfo or vLayoutInfo.layouts[vLayoutInfo.activeLayout]
     if (not vLayout or vLayout.layoutType == Enum.EditModeLayoutType.Preset)
     and self.CurrentProfile.MinimapScale then
         return self.CurrentProfile.MinimapScale
@@ -1734,12 +1746,10 @@ function Mappy:SetEditModeMinimapScale(pScale)
     end
 
     local vValue = math.floor((math.max(0.5, math.min(2, pScale)) * 100 - 50) / 10 + 0.5)
-    local vLayout = EditModeManagerFrame:GetActiveLayoutInfo()
+    local vLayoutInfo = GetSavedEditModeLayouts()
+    local vLayout = EditModeManagerFrame.overrideLayoutInfo or vLayoutInfo.layouts[vLayoutInfo.activeLayout]
     if vLayout and (vLayout.layoutType == Enum.EditModeLayoutType.Account
     or vLayout.layoutType == Enum.EditModeLayoutType.Character) then
-        -- Save the same expanded structure Blizzard saves, without modifying its live tables.
-        -- Raw C_EditMode.GetLayouts().layouts excludes presets; activeLayout does not.
-        local vLayoutInfo = CopyTable(EditModeManagerFrame.layoutInfo)
         local vActiveLayout = vLayoutInfo.layouts[vLayoutInfo.activeLayout]
         for _, vSystem in ipairs(vActiveLayout.systems) do
             if vSystem.system == Enum.EditModeSystem.Minimap then
@@ -3589,11 +3599,15 @@ function Mappy._AppearancePanel:Construct(pParent)
     MappyScaleSliderHigh:SetText("200%")
     MappyScaleSliderText:SetText("Scale - 100%")
     self.ScaleSlider:SetScript("OnValueChanged", function (slider, value, userInput)
-        -- SetValue during refresh must never save an Edit Mode layout.
-        if userInput and not Mappy.DisableUpdates then
-            Mappy:SetEditModeMinimapScale(value / 100)
+        -- Programmatic refreshes must never save an Edit Mode layout.
+        if not userInput or Mappy.DisableUpdates then
+            return
         end
-        MappyScaleSliderText:SetText(string.format("Scale - %.0f%%", Mappy:GetEditModeMinimapScale() * 100))
+        Mappy:SetEditModeMinimapScale(value / 100)
+        local vPercent = Mappy:GetEditModeMinimapScale() * 100
+        -- A blocked write must not leave the thumb at an unapplied value.
+        slider:SetValue(vPercent)
+        MappyScaleSliderText:SetText(string.format("Scale - %.0f%%", vPercent))
         Mappy:UpdateSizeSliderText()
     end)
 
